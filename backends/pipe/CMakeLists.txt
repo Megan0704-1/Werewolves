@@ -1,0 +1,3 @@
+add_library(werewolf_pipe_backend STATIC pipe_communication.cpp)
+target_link_libraries(werewolf_pipe_backend PUBLIC werewolf_core)
+target_include_directories(werewolf_pipe_backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

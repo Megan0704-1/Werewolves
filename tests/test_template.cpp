@@ -1,12 +1,12 @@
+#include <gtest/gtest.h>
 #include "template_communication.h"
 
-int main() {
-
+// suite name, test name
+TEST(TemplateCommunication, BasicLifeCycle) {
     auto comm = werewolf::make_template_communication();
-    comm->initialize(4);
-    comm->send_to_player(0, "hello player");
-    comm->send_to_server(0, "hello server");
-    comm->shutdown();
+    ASSERT_TRUE(comm->initialize(4));
+    EXPECT_TRUE(comm->send_to_player(0, "hello player"));
+    EXPECT_TRUE(comm->send_to_server(0, "hello server"));
 
-    return 0;
+    comm->shutdown();
 }

@@ -12,7 +12,9 @@ Terminal-based implementation of the Werewolf party game with pluggable communic
 - CMake
 
 ## Tests
+We use googletest to manage the project.
 ```bash
+# make a new build or clear the current build dir
 mkdir build && cd build
 
 # build
@@ -20,5 +22,8 @@ cmake ..
 make
 
 # run tests
+# all tests
+ctest
+# individual tests
 ./tests/test_template
 ```

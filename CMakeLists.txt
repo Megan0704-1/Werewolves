@@ -22,3 +22,5 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/backends)
 
 # tests
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+enable_testing()

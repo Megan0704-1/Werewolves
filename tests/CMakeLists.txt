@@ -1,0 +1,2 @@
+add_executable(test_template ${CMAKE_CURRENT_SOURCE_DIR}/test_template.cpp)
+target_link_libraries(test_template PUBLIC werewolf_template_backend)

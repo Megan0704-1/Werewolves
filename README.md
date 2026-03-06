@@ -27,3 +27,6 @@ ctest
 # individual tests
 ./tests/test_template
 ```
+
+## Note
+Make sure to pass the CI test before merging into main.

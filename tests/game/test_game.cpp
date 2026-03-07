@@ -46,4 +46,14 @@ TEST(GameTest, RunReturnsWhenInitializeFails) {
     EXPECT_EQ(raw->shutdown_called, 0);
 }
 
+TEST(GameTest, RunWithNullCommunicationDoesNotCrash) {
+    GameConfig cfg;
+    testutils::TempDir game_log_tmp, moderator_log_tmp;
+    cfg.game_log = game_log_tmp.path() + "/game.log";
+    cfg.moderator_log = moderator_log_tmp.path() + "/moderator.log";
+
+    Game game(nullptr, cfg);
+    EXPECT_NO_THROW(game.run());
+}
+
 } // namespace werewolf::test

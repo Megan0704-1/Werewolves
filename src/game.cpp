@@ -35,6 +35,7 @@ void Game::log(const std::string& msg, bool to_stdout, bool to_all, bool to_mode
     }
 }
 
+// responsible for acquire and release comm object.
 void Game::run() {
     running_.store(true);
 

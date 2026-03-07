@@ -22,7 +22,7 @@ target_link_libraries(test_game PUBLIC werewolf_core GTest::gtest_main)
 
 target_include_directories(test_template PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils)
 target_include_directories(test_pipe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils)
-target_include_directories(test_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils ${CMAKE_CURRENT_SOURCE_DIR}/game ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(test_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils ${CMAKE_CURRENT_SOURCE_DIR}/game)
 
 include(GoogleTest)
 

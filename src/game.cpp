@@ -6,12 +6,30 @@
 
 namespace werewolf {
 
+// cleanup scope guard
+Game::CleanupGuard::CleanupGuard(Game& game): game(game) {}  
+
+Game::CleanupGuard::~CleanupGuard() {
+    game.running_.store(false);
+    if(is_initialized && game.comm_) {
+        game.comm_->shutdown();
+    }
+    if(game.game_log_.is_open()) {
+        game.game_log_.flush();
+    }
+    if(game.moderator_log_.is_open()) {
+        game.moderator_log_.flush();
+    }
+}
+
+// ctor & dtor
 Game::Game(std::unique_ptr<ICommunication> comm, GameConfig cfg): comm_(std::move(comm)), cfg_(std::move(cfg)) {}
 
 Game::~Game() {
     request_stop();
 }
 
+// methods
 void Game::request_stop() {
     running_.store(false);
 }
@@ -39,6 +57,9 @@ void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to
 void Game::run() {
     running_.store(true);
 
+    // handle game state and communication object lifecycle automatically
+    CleanupGuard scope_guard(*this);
+
     game_log_.open(cfg_.game_log, std::ios::app);
     moderator_log_.open(cfg_.moderator_log, std::ios::app);
 
@@ -53,12 +74,11 @@ void Game::run() {
         running_.store(false);
         return;
     }
+    scope_guard.is_initialized = true;
 
     log(">>> Werewolf game starting <<<");
 
-    comm_->shutdown();
     log(">>> Werewolf game ended <<<");
-    running_.store(false);
 }
 
 } // namespace werewolf

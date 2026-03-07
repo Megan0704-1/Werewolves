@@ -30,7 +30,7 @@ private:
     std::ofstream moderator_log_;
     std::mutex log_mutex_;
 
-    void log(const std::string& msg, bool to_stdout=true, bool to_all=true, bool to_moderato=true);
+    void log(const std::string& msg, bool to_stdout=true, bool to_all=true, bool to_moderator=true);
 };
 
 } // namespace werewolf

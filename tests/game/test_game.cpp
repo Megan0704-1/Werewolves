@@ -11,8 +11,8 @@ TEST(GameTest, RunInitializesAndShutsDownCommunication) {
     cfg.max_players = 6;
 
     testutils::TempDir game_log_tmp, moderator_log_tmp;
-    cfg.game_log = game_log_tmp.path();
-    cfg.moderator_log = moderator_log_tmp.path();
+    cfg.game_log = game_log_tmp.path() + "/game.log";
+    cfg.moderator_log = moderator_log_tmp.path() + "/moderator.log";
 
     auto fake = std::make_unique<FakeCommunication>();
     // raw observer
@@ -32,8 +32,8 @@ TEST(GameTest, RunReturnsWhenInitializeFails) {
     cfg.max_players = 4;
 
     testutils::TempDir game_log_tmp, moderator_log_tmp;
-    cfg.game_log = game_log_tmp.path();
-    cfg.moderator_log = moderator_log_tmp.path();
+    cfg.game_log = game_log_tmp.path() + "/game.loc";
+    cfg.moderator_log = moderator_log_tmp.path() + "/moderator.log";
 
     auto fake = std::make_unique<FakeCommunication>();
     fake->initialize_result = false; // this makes initialize returns false in fake_communication.h

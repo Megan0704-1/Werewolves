@@ -16,7 +16,7 @@ void Game::request_stop() {
     running_.store(false);
 }
 
-void Game::log(const std::string& msg, bool to_stdout, bool to_all, bool to_moderator) {
+void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to_moderator_log) {
     const auto now = std::time(nullptr);
     const std::string stamped = "(" + std::to_string(now) + "): " +  msg;
 
@@ -25,11 +25,11 @@ void Game::log(const std::string& msg, bool to_stdout, bool to_all, bool to_mode
     if(to_stdout) {
         std::cout << stamped << std::endl;
     }
-    if(to_all && game_log_.is_open()) {
+    if(to_game_log && game_log_.is_open()) {
         game_log_ << stamped << '\n';
         game_log_.flush();
     }
-    if(to_moderator && moderator_log_.is_open()) {
+    if(to_moderator_log && moderator_log_.is_open()) {
         moderator_log_ << stamped << '\n';
         moderator_log_.flush();
     }

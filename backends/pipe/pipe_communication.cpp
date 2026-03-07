@@ -66,17 +66,32 @@ bool PipeCommunication::w_fifo(const int fd, const std::string& msg, std::mutex&
 }
 
 /* r_fifo
- * behavior: open fifo -> read fifo to msg -> return msg 
+ * behavior: open fifo -> read fifo to tmp_buf -> append to rbuf -> split by newline -> return one line from rbuf
  * note: no lock is needed for reads.
  */
-std::optional<std::string> PipeCommunication::r_fifo(const int fd) {
+std::optional<std::string> PipeCommunication::r_fifo(const int fd, std::string& rbuf) {
     if(!alive_) return std::nullopt;
-    char buf[1024];
 
-    ssize_t n = read(fd, buf, sizeof(buf));
+    auto getline_from_rbuf = [&](std::string& line) -> bool {
+        auto pos = rbuf.find('\n');
+        if(pos == std::string::npos) return false;
+        line = rbuf.substr(0, pos);
+        rbuf.erase(0, pos+1);
+        return true;
+    };
+
+    std::string msg;
+    if(getline_from_rbuf(msg)) return msg;
+
+    char tmp_buf[1024];
+    ssize_t n = read(fd, tmp_buf, sizeof(tmp_buf));
     if(n <= 0) return std::nullopt;
 
-    return std::string(buf, n);
+    rbuf.append(tmp_buf, n);
+
+    if(getline_from_rbuf(msg)) return msg;
+
+    return std::nullopt;
 }
 
 // public methods impl
@@ -90,8 +105,9 @@ bool PipeCommunication::initialize(int num_slots) {
     p2s_fd_.resize(num_slots_);
     s2p_fd_.resize(num_slots_);
     p2s_mutex_.resize(num_slots_);
-    p2s_mutex_.resize(num_slots_);
     s2p_mutex_.resize(num_slots_);
+    p2s_rbuf_.resize(num_slots_);
+    s2p_rbuf_.resize(num_slots_);
 
     // loop through entries and instantiate objects
     for(int i=0; i<num_slots_; ++i) {
@@ -157,7 +173,7 @@ bool PipeCommunication::send_to_player(int slot, const std::string& msg) {
 
 std::optional<std::string> PipeCommunication::recv_from_player(int slot) {
     if(!SlotValid(slot, num_slots_)) return std::nullopt;
-    return r_fifo(p2s_fd_[slot]);
+    return r_fifo(p2s_fd_[slot], p2s_rbuf_[slot]);
 }
 
 bool PipeCommunication::send_to_server(int slot, const std::string& msg) {
@@ -167,7 +183,7 @@ bool PipeCommunication::send_to_server(int slot, const std::string& msg) {
 
 std::optional<std::string> PipeCommunication::recv_from_server(int slot) {
     if(!SlotValid(slot, num_slots_)) return std::nullopt;
-    return r_fifo(s2p_fd_[slot]);
+    return r_fifo(s2p_fd_[slot], s2p_rbuf_[slot]);
 }
 
 } // namspace werewolf

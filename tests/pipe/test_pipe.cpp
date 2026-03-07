@@ -33,7 +33,7 @@ TEST(PipeCommunicationTest, P2S) {
     }
 
     ASSERT_TRUE(msg.has_value());
-    EXPECT_EQ(msg.value(), "hello\n");
+    EXPECT_EQ(msg.value(), "hello");
 
     player.join();
     comm->shutdown();
@@ -58,7 +58,42 @@ TEST(PipeCommunicationTest, S2P) {
     }
 
     ASSERT_TRUE(msg.has_value());
-    EXPECT_EQ(msg.value(), "vote\n");
+    EXPECT_EQ(msg.value(), "vote");
+
+    server.join();
+    comm->shutdown();
+}
+
+// multiple messages with new line
+TEST(PipeCommunicationTest, MultiMsg) {
+    testutils::TempDir tmp;
+    auto comm = werewolf::make_pipe_communication(tmp.path(), true);
+    ASSERT_TRUE(comm->initialize(1));
+
+    std::thread server([&](){
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        comm->send_to_player(0, "hello2");
+        comm->send_to_player(0, "hello1");
+        comm->send_to_player(0, "hello0");
+    });
+
+    std::optional<std::string> msg;
+    for(int i=0;i<10;i++) {
+        msg = comm->recv_from_server(0);
+        if(msg) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    ASSERT_TRUE(msg.has_value());
+    EXPECT_EQ(msg.value(), "hello2");
+
+    msg = comm->recv_from_server(0);
+    ASSERT_TRUE(msg.has_value());
+    EXPECT_EQ(msg.value(), "hello1");
+
+    msg = comm->recv_from_server(0);
+    ASSERT_TRUE(msg.has_value());
+    EXPECT_EQ(msg.value(), "hello0");
 
     server.join();
     comm->shutdown();

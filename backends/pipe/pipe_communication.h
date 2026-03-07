@@ -33,10 +33,12 @@ private:
     std::vector<int> s2p_fd_;
     std::vector<std::unique_ptr<std::mutex>> p2s_mutex_;
     std::vector<std::unique_ptr<std::mutex>> s2p_mutex_;
+    std::vector<std::string> p2s_rbuf_;
+    std::vector<std::string> s2p_rbuf_;
 
     // fifo operations
     bool w_fifo(const int fd, const std::string& msg, std::mutex& mu);
-    std::optional<std::string> r_fifo(const int fd);
+    std::optional<std::string> r_fifo(const int fd, std::string& rbuf);
 
 };
 

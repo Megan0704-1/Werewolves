@@ -65,13 +65,11 @@ void Game::run() {
 
     if(!comm_) {
         std::cerr << "Game has no communication backend.\n";
-        running_.store(false);
         return;
     }
 
     if(!comm_->initialize(cfg_.max_players)) {
         std::cerr << "Failed to initialize communication.\n";
-        running_.store(false);
         return;
     }
     scope_guard.is_initialized = true;

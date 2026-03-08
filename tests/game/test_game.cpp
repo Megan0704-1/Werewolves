@@ -32,7 +32,7 @@ TEST(GameTest, RunReturnsWhenInitializeFails) {
     cfg.max_players = 4;
 
     testutils::TempDir game_log_tmp, moderator_log_tmp;
-    cfg.game_log = game_log_tmp.path() + "/game.loc";
+    cfg.game_log = game_log_tmp.path() + "/game.log";
     cfg.moderator_log = moderator_log_tmp.path() + "/moderator.log";
 
     auto fake = std::make_unique<FakeCommunication>();

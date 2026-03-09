@@ -1,7 +1,6 @@
 #pragma once
 
 /// game.h
-///
 
 #include "werewolf/communication.h"
 #include "werewolf/types.h"
@@ -32,6 +31,15 @@ private:
         ~CleanupGuard();
     };
 
+    // player state
+    struct Player {
+        int slot = -1;
+        std::string name;
+        Role role = Role::Townperson;
+        bool is_connected = false;
+        bool is_alive = true;
+    };
+
     // members
     std::unique_ptr<ICommunication> comm_;
     GameConfig cfg_;
@@ -41,6 +49,18 @@ private:
     std::ofstream moderator_log_;
     std::mutex log_mutex_;
 
+    // player members and methods
+    std::vector<Player> players_;
+    mutable std::mutex players_mutex_;
+    void initialize_players(const std::vector<std::string>& names);
+    std::vector<int> alive_slots() const;
+    int connected_player_count() const;
+
+    // phases
+    std::vector<std::string> load_default_names() const;
+    void lobby_phase();
+
+    // logging methods
     void log(const std::string& msg, bool to_stdout=true, bool to_game_log=true, bool to_moderator_log=true);
 
 };

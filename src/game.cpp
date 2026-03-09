@@ -29,28 +29,10 @@ Game::~Game() {
     request_stop();
 }
 
-// methods
+// public APIs
+
 void Game::request_stop() {
     running_.store(false);
-}
-
-void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to_moderator_log) {
-    const auto now = std::time(nullptr);
-    const std::string stamped = "(" + std::to_string(now) + "): " +  msg;
-
-    std::lock_guard<std::mutex> lock(log_mutex_);
-
-    if(to_stdout) {
-        std::cout << stamped << std::endl;
-    }
-    if(to_game_log && game_log_.is_open()) {
-        game_log_ << stamped << '\n';
-        game_log_.flush();
-    }
-    if(to_moderator_log && moderator_log_.is_open()) {
-        moderator_log_ << stamped << '\n';
-        moderator_log_.flush();
-    }
 }
 
 // responsible for acquire and release comm object.
@@ -76,7 +58,84 @@ void Game::run() {
 
     log(">>> Werewolf game starting <<<");
 
+    lobby_phase();
+
     log(">>> Werewolf game ended <<<");
 }
+
+// player methods
+void Game::initialize_players(const std::vector<std::string>& names) {
+    // TODO: role assignment, connection status, liveness.
+    std::lock_guard<std::mutex> lock(players_mutex_);
+
+    players_.clear();
+    players_.reserve(names.size());
+
+    for(int i=0; i<static_cast<int>(names.size()); ++i) {
+        Player p;
+        p.slot = i;
+        p.name = names[i];
+        players_.push_back(std::move(p));
+    }
+}
+
+std::vector<int> Game::alive_slots() const {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+    std::vector<int> slots;
+    for(const Player& player : players_) {
+        if(player.is_connected && player.is_alive && player.slot >=0) {
+            slots.push_back(player.slot);
+        }
+    }
+    return slots;
+}
+
+int Game::connected_player_count() const {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+
+    int cnt = 0;
+    for(const Player& p : players_) {
+        if(p.is_connected) cnt++;
+    }
+    return cnt;
+}
+
+std::vector<std::string> Game::load_default_names() const {
+    std::vector<std::string> names;
+    names.reserve(cfg_.max_players);
+
+    for(int i=0; i<cfg_.max_players; ++i) {
+        names.push_back("player" + std::to_string(i));
+    }
+    return names;
+}
+
+// phase: players waiting in the lobby
+void Game::lobby_phase() {
+    auto names = load_default_names();
+    initialize_players(names);
+    log("Lobby initialized with " + std::to_string(names.size()) + " players.");
+}
+
+// methods
+void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to_moderator_log) {
+    const auto now = std::time(nullptr);
+    const std::string stamped = "(" + std::to_string(now) + "): " +  msg;
+
+    std::lock_guard<std::mutex> lock(log_mutex_);
+
+    if(to_stdout) {
+        std::cout << stamped << std::endl;
+    }
+    if(to_game_log && game_log_.is_open()) {
+        game_log_ << stamped << '\n';
+        game_log_.flush();
+    }
+    if(to_moderator_log && moderator_log_.is_open()) {
+        moderator_log_ << stamped << '\n';
+        moderator_log_.flush();
+    }
+}
+
 
 } // namespace werewolf

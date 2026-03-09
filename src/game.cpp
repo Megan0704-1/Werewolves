@@ -1,8 +1,12 @@
 #include "werewolf/game.h"
+#include "werewolf/types.h"
 
+#include <chrono>
 #include <ctime>
 #include <iostream>
 #include <utility>
+#include <thread>
+#include <algorithm>
 
 namespace werewolf {
 
@@ -38,6 +42,7 @@ void Game::request_stop() {
 // responsible for acquire and release comm object.
 void Game::run() {
     running_.store(true);
+    round_cnt = 0;
 
     // handle game state and communication object lifecycle automatically
     CleanupGuard scope_guard(*this);
@@ -96,6 +101,29 @@ void Game::initialize_players(const std::vector<std::string>& names) {
         players_.push_back(std::move(p));
     }
 }
+
+// get_player_info:
+// get player object by querying the slot
+std::optional<Game::Player> Game::get_player_info(int slot) const {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+    for(const Player& player : players_) {
+        if(player.slot == slot) {
+            return player;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<Game::Player> Game::get_player_info(const std::string& name) const {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+    for(const Player& player : players_) {
+        if(player.name == name) {
+            return player;
+        }
+    }
+    return std::nullopt;
+}
+
 
 // alive_slots:
 // return list of alive slots.
@@ -159,8 +187,100 @@ std::string Game::role_name(Role r) const {
     return "Unknown";
 }
 
+VoteResult Game::conduct_night_vote() {
+    std::vector<int> wolves = alive_slots_with_role(Role::Wolf);
+    if (wolves.empty()) {
+        log("Night: no wolves alive.");
+        return VoteResult();
+    }
+
+    std::vector<int> witch = alive_slots_with_role(Role::Witch);
+    std::vector<int> victims = alive_slots_with_role(Role::Townperson);
+    victims.insert(victims.end(), witch.begin(), witch.end());
+
+    if (victims.empty()) {
+        log("Night: no valid victim.");
+        return VoteResult();
+    }
+
+    if(cfg_.deterministic_vote) {
+        sort(victims.begin(), victims.end());
+        return choose_night_victim(wolves, victims);
+    }
+
+    return collect_votes(wolves, victims, cfg_.vote_duration);
+}
+
+VoteResult Game::conduct_day_vote() {
+    std::vector<int> slots = alive_slots();
+
+    if(slots.empty()) {
+        log("Day: no valid lynch target.");
+        return VoteResult();
+    }
+
+    if(cfg_.deterministic_vote) {
+        sort(slots.begin(), slots.end());
+        return choose_day_target(slots, slots);
+    }
+
+    return collect_votes(slots, slots, cfg_.vote_duration);
+}
+
+// collect_votes:
+// caller ensures voters and candidates are all connected slots
+VoteResult Game::collect_votes(const std::vector<int>& voters, const std::vector<int>& candidates, int duration) {
+    VoteResult vr;
+
+    auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(duration);
+    std::vector<bool> voted(cfg_.max_players, false); // max player space to ensure valid indexing
+    std::vector<int> votes(cfg_.max_players, 0); // max player space to ensure valid indexing
+
+    while(std::chrono::steady_clock().now() < timeout) {
+        for(auto v : voters) {
+            if(voted[v]) continue;
+            auto msg = recv_from_slot(v);
+            if(!msg) continue;
+
+            // vote string should be prefixed with "vote<colon><space>"
+            if(msg->rfind(cfg_.vote_prefix, 0) != 0) continue;
+            std::string target_name = msg->substr(cfg_.vote_prefix.size());
+            auto p = get_player_info(target_name);
+            if(p == std::nullopt) {
+                send_to_slot(v, "[Invalid vote] Unknown player: " + target_name);
+                continue;
+            }
+            if(std::find(candidates.begin(), candidates.end(), p->slot) == candidates.end()) {
+                send_to_slot(v, "[Invalid vote] Unallowed target: " + target_name);
+                continue;
+            }
+            votes[p->slot]++;
+            voted[v] = true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    int target = -1, max_vote = 0;
+    bool tie = false;
+    for(int cand : candidates) {
+        if(votes[cand] > max_vote) {
+            target = cand;
+            max_vote = votes[cand];
+            tie = false;
+        } else if(max_vote > 0 && votes[cand] == max_vote) tie = true;
+    }
+
+    if(max_vote == 0) vr.status = VoteStatus::NoDecision;
+    else if(tie) vr.status = VoteStatus::Tie;
+    else {
+        vr.status = VoteStatus::Decided;
+        vr.target = target;
+    }
+    return vr;
+}
+
 // assign_roles:
-// if deterministic flag is set in the config, we apply the following
+// if deterministic_vote flag is set in the config, we apply the following
 // roles to the role assignment:
 // - assign # of wolves
 // - assign witch
@@ -173,7 +293,7 @@ void Game::assign_roles() {
 
     {
         std::lock_guard<std::mutex> lock(players_mutex_); // connected slot also acquire lock
-        if(cfg_.deterministic) {
+        if(cfg_.deterministic_assign) {
             // clear all role assignments
             for(auto s : slots) {
                 players_[s].role = Role::Townperson;
@@ -207,22 +327,30 @@ std::vector<int> Game::alive_slots_with_role(Role r) const {
     return target;
 }
 
-int Game::pick_night_victim(const std::vector<int>& slots) const {
-    if(cfg_.deterministic) {
-        return slots.front();
+VoteResult Game::choose_night_victim(const std::vector<int>& voters, const std::vector<int>& slots) {
+    VoteResult vr;
+
+    if(cfg_.deterministic_vote) {
+        vr.status = VoteStatus::Decided;
+        vr.target = slots.front();
+        return vr;
     }
 
-    // tmp
-    return 0;
+    // discuss
+
+    return vr;
 }
 
-int Game::pick_day_target(const std::vector<int>& slots) const {
-    if(cfg_.deterministic) {
-        return slots.front();
+VoteResult Game::choose_day_target(const std::vector<int>& voters, const std::vector<int>& slots) {
+    VoteResult vr;
+
+    if(cfg_.deterministic_vote) {
+        vr.status = VoteStatus::Decided;
+        vr.target = slots.front();
+        return vr;
     }
 
-    // tmp
-    return 0;
+    return vr;
 }
 
 bool Game::kill_player(const int slot) {
@@ -235,6 +363,58 @@ bool Game::kill_player(const int slot) {
     }
     players_[slot].is_alive = false;
     return true;
+}
+
+void Game::handle_night_vote_result(const VoteResult& result) {
+    switch(result.status) {
+        case VoteStatus::Decided:
+            if(kill_player(result.target)) {
+                log("Night: player " + std::to_string(result.target) + " was killed.");
+            }
+            break;
+        case VoteStatus::Tie:
+            // stochastic / deterministic_vote pick one victim
+            // currently no-op
+            log("Night: vote tied. Nobody was killed.");
+            break;
+        case VoteStatus::NoDecision:
+            log("Night: no decision was made.");
+            break;
+    }
+}
+
+void Game::handle_day_vote_result(const VoteResult& result) {
+    switch(result.status) {
+        case VoteStatus::Decided:
+            if(kill_player(result.target)) {
+                log("Day: player " + std::to_string(result.target) + " was lynched.");
+            }
+            break;
+        case VoteStatus::Tie:
+            // if tie for day vote, nobody will be killed.
+            log("Day: vote tied. Nobody was targeted.");
+            break;
+        case VoteStatus::NoDecision:
+            log("Day: no decision was made.");
+            break;
+    }
+}
+
+// connect_lobby_players:
+// within wait seconds, scan all players, if recv msg : `connected`, mark it as connected, send greeting msg to the player.
+void Game::connect_lobby_players() {
+    auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.lobby_wait_seconds);
+    while(std::chrono::steady_clock().now() < timeout && running_) {
+        for(const Player& p : players_) {
+            if(p.is_connected) continue;
+            if(auto msg = recv_from_slot(p.slot); msg && *msg == "connect") {
+                mark_connected(p.slot);
+                log(p.name + " is connected.");
+                send_to_slot(p.slot, "Greeting from the game. You are connected, your slot is: " + std::to_string(p.slot));
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 }
 
 // load_names:
@@ -294,16 +474,20 @@ void Game::broadcast_to_slots(const std::string& msg, const std::vector<int>& sl
     }
 }
 
+std::optional<std::string> Game::recv_from_slot(int slot) {
+    if(!comm_) {
+        log("recv_from_slot failed: no communication backend", true, true, true);
+        return std::nullopt;
+    }
+    return comm_->recv_from_player(slot);
+}
+
 // phase: players waiting in the lobby
 void Game::lobby_phase() {
     auto names = load_names();
     initialize_players(names);
     log("Lobby initialized with " + std::to_string(names.size()) + " players.");
-
-    // tmp
-    for(int i=0; i<players_.size(); ++i) {
-        mark_connected(i);
-    }
+    connect_lobby_players();
     broadcast_to_slots("Lobby Ready", connected_slots());
     assign_roles();
 }
@@ -311,27 +495,10 @@ void Game::lobby_phase() {
 // night_phase:
 // get wolves sets
 // get victim sets
-// choose smallest slot as victim (deterministic)
+// choose smallest slot as victim (deterministic_vote)
 void Game::night_phase() {
-    std::vector<int> wolves = alive_slots_with_role(Role::Wolf);
-    if (wolves.empty()) {
-        log("Night: no wolves alive.");
-        return;
-    }
-
-    std::vector<int> witch = alive_slots_with_role(Role::Witch);
-    std::vector<int> victims = alive_slots_with_role(Role::Townperson);
-    victims.insert(victims.end(), witch.begin(), witch.end());
-    if (victims.empty()) {
-        log("Night: no valid victim.");
-        return;
-    }
-
-    sort(victims.begin(), victims.end());
-    const int victim = pick_night_victim(victims);
-    if(kill_player(victim)) {
-        log("Night: player " + std::to_string(victim) + " was killed.");
-    }
+    VoteResult result = conduct_night_vote();
+    handle_night_vote_result(result);
 
     log("Night ends");
 }
@@ -339,19 +506,8 @@ void Game::night_phase() {
 void Game::day_phase() {
     log("Day begins");
     // query
-    std::vector<int> slots = alive_slots();
-    if(slots.empty()) {
-        log("Day: no valid lynch target.");
-        log("Day ends");
-        return;
-    }
-    // chat
-    // vote
-    // mimic behavior after vote.
-    int victim = pick_day_target(slots);
-    if (kill_player(victim)) {
-        log("Day: player " + std::to_string(victim) + " was lynched.");
-    }
+    VoteResult result = conduct_day_vote();
+    handle_day_vote_result(result);
     log("Day ends");
 }
 

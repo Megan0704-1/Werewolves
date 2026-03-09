@@ -1,10 +1,14 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #include "werewolf/game.h"
 #include "../utils/temp_dir.h"
+#include "../utils/files.h"
 #include "fake_communication.h"
 
 namespace werewolf::test {
+
+using ::testing::HasSubstr;
 
 TEST(GameTest, RunInitializesAndShutsDownCommunication) {
     GameConfig cfg;
@@ -32,7 +36,7 @@ TEST(GameTest, RunReturnsWhenInitializeFails) {
     cfg.max_players = 4;
 
     testutils::TempDir game_log_tmp, moderator_log_tmp;
-    cfg.game_log = game_log_tmp.path() + "/game.loc";
+    cfg.game_log = game_log_tmp.path() + "/game.log";
     cfg.moderator_log = moderator_log_tmp.path() + "/moderator.log";
 
     auto fake = std::make_unique<FakeCommunication>();
@@ -54,6 +58,25 @@ TEST(GameTest, RunWithNullCommunicationDoesNotCrash) {
 
     Game game(nullptr, cfg);
     EXPECT_NO_THROW(game.run());
+}
+
+TEST(GameTest, RunLogsLobbyInitialization) {
+    GameConfig cfg;
+    testutils::TempDir game_log_tmp, moderator_log_tmp;
+    cfg.game_log = game_log_tmp.path() + "/game.log";
+    cfg.moderator_log = moderator_log_tmp.path() + "/moderator.log";
+
+    auto fake = std::make_unique<FakeCommunication>();
+    auto* raw = fake.get();
+
+    Game game(std::move(fake), cfg);
+    game.run();
+
+    EXPECT_EQ(raw->initialize_called, 1);
+    EXPECT_EQ(raw->shutdown_called, 1);
+
+    std::string log_content = testutils::ReadFileContents(cfg.game_log);
+    EXPECT_THAT(log_content, HasSubstr("Lobby"));
 }
 
 } // namespace werewolf::test

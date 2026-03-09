@@ -2,6 +2,9 @@
 
 #include <string>
 
+namespace werewolf {
+enum class Role { Townperson, Wolf, Witch };
+
 struct GameConfig {
     int  max_players = 16;
     int  lobby_wait_seconds = 30;
@@ -17,3 +20,4 @@ struct GameConfig {
     std::string moderator_log = "moderator.log";
 };
 
+} // namespace werewolf

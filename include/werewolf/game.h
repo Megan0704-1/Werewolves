@@ -59,6 +59,7 @@ private:
     int connected_player_count() const;
 
     // phases
+    std::vector<std::string> load_names() const;
     std::vector<std::string> load_default_names() const;
     void lobby_phase();
 

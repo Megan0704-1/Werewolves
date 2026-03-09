@@ -133,6 +133,32 @@ int Game::connected_player_count() const {
     return cnt;
 }
 
+// load_names:
+// If cfg_.names_file is readable, load non-empty trimmed lines from it.
+// The returned list is not padded to cfg_.max_players.
+// If the file cannot be opened, fall back to load_default_names().
+std::vector<std::string> Game::load_names() const {
+    std::vector<std::string> names;
+    names.reserve(cfg_.max_players);
+    std::ifstream fd(cfg_.names_file);
+    if(!fd) {
+        return load_default_names();
+    }
+
+    std::string line;
+    while(getline(fd, line)) {
+        // trim trailing whitespaces
+        while(!line.empty() && (line.back() == '\r' || line.back() == ' ')) {
+            line.pop_back();
+        }
+        if(!line.empty()) names.push_back(line);
+    }
+
+    return names;
+}
+
+// load_default_names:
+// The returne names list has size cfg_.max_players
 std::vector<std::string> Game::load_default_names() const {
     std::vector<std::string> names;
     names.reserve(cfg_.max_players);
@@ -166,7 +192,7 @@ void Game::broadcast_to_slots(const std::string& msg, const std::vector<int>& sl
 
 // phase: players waiting in the lobby
 void Game::lobby_phase() {
-    auto names = load_default_names();
+    auto names = load_names();
     initialize_players(names);
     log("Lobby initialized with " + std::to_string(names.size()) + " players.");
 

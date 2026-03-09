@@ -369,7 +369,8 @@ void Game::handle_night_vote_result(const VoteResult& result) {
     switch(result.status) {
         case VoteStatus::Decided:
             if(kill_player(result.target)) {
-                log("Night: player " + std::to_string(result.target) + " was killed.");
+                announce_death(result.target, "night");
+                dead_phase(result.target);
             }
             break;
         case VoteStatus::Tie:
@@ -387,7 +388,8 @@ void Game::handle_day_vote_result(const VoteResult& result) {
     switch(result.status) {
         case VoteStatus::Decided:
             if(kill_player(result.target)) {
-                log("Day: player " + std::to_string(result.target) + " was lynched.");
+                announce_death(result.target, "day");
+                dead_phase(result.target);
             }
             break;
         case VoteStatus::Tie:
@@ -482,6 +484,22 @@ std::optional<std::string> Game::recv_from_slot(int slot) {
     return comm_->recv_from_player(slot);
 }
 
+void Game::announce_death(int slot, const std::string& when) {
+    auto info = get_player_info(slot);
+    if(!info) return;
+
+    std::string msg;
+    if(when == "night") {
+        msg = "Night: " + info->name + " was killed.";
+    } else if(when == "day") {
+        msg = "Day: " + info->name + " was lynched.";
+    } else {
+        msg = info->name + " died.";
+    }
+    log(msg);
+    broadcast_to_slots(msg, alive_slots());
+}
+
 // phase: players waiting in the lobby
 void Game::lobby_phase() {
     auto names = load_names();
@@ -509,6 +527,21 @@ void Game::day_phase() {
     VoteResult result = conduct_day_vote();
     handle_day_vote_result(result);
     log("Day ends");
+}
+
+void Game::dead_phase(int slot) {
+    auto info = get_player_info(slot);
+    if(!info) return;
+
+    auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.death_speech_seconds);
+    while(std::chrono::steady_clock().now() < timeout) {
+        if(auto msg = recv_from_slot(slot); msg && !msg->empty()) {
+            std::string final_words = "Final words from " + info->name + ": " + *msg;
+            log(final_words);
+            broadcast_to_slots(final_words, alive_slots());
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 }
 
 // rule

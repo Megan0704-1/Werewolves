@@ -28,7 +28,7 @@ TEST(GameTest, RunProcessesConnectAndVotes) {
     // lobby connect
     raw->connect_automatically();
 
-    // night vote
+    // wolves, night vote
     raw->push_msg(0, "vote: player2");
     raw->push_msg(1, "vote: player2");
 
@@ -37,13 +37,21 @@ TEST(GameTest, RunProcessesConnectAndVotes) {
     raw->push_msg(1, "vote: player3");
     raw->push_msg(2, "vote: player3");
     raw->push_msg(3, "vote: player0");
+    raw->push_msg(4, "vote: player3");
+    raw->push_msg(5, "vote: player3");
+
+    // final words from players
+    raw->push_msg(2, "I am innocent.");
+    raw->push_msg(3, "I am hungry.");
 
     Game game(std::move(fake), cfg);
     game.run();
 
     std::string log_content = testutils::ReadFileContents(cfg.game_log);
-    EXPECT_THAT(log_content, HasSubstr("Night: player 2 was killed."));
-    EXPECT_THAT(log_content, HasSubstr("Day: player 3 was lynched."));
+    EXPECT_THAT(log_content, HasSubstr("Night: player2 was killed."));
+    EXPECT_THAT(log_content, HasSubstr("Day: player3 was lynched."));
+    EXPECT_THAT(log_content, HasSubstr("Final words from player2: I am innocent."));
+    EXPECT_THAT(log_content, HasSubstr("Final words from player3: I am hungry."));
 }
 
 } // namespace werewolf::test

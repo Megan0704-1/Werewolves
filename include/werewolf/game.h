@@ -85,15 +85,16 @@ private:
     void lobby_phase();
     void night_phase();
     void day_phase();
+    void dead_phase(int slot);
 
     // end rule
     Winner check_win() const;
-
 
     // private methods
     bool send_to_slot(int slot, const std::string& msg);
     void broadcast_to_slots(const std::string& msg, const std::vector<int>& slots);
     std::optional<std::string> recv_from_slot(int slot);
+    void announce_death(int slot, const std::string& when);
 
     // validation
     bool validate_assign_config(std::vector<int>& slots) ;

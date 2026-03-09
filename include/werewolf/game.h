@@ -54,11 +54,17 @@ private:
     mutable std::mutex players_mutex_;
     void initialize_players(const std::vector<std::string>& names);
     std::vector<int> alive_slots() const;
+    bool mark_connected(int slot);
+    std::vector<int> connected_slots() const;
     int connected_player_count() const;
 
     // phases
     std::vector<std::string> load_default_names() const;
     void lobby_phase();
+
+    // private methods
+    bool send_to_slot(int slot, const std::string& msg);
+    void broadcast_to_slots(const std::string& msg, const std::vector<int>& slots);
 
     // logging methods
     void log(const std::string& msg, bool to_stdout=true, bool to_game_log=true, bool to_moderator_log=true);

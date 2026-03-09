@@ -63,7 +63,8 @@ void Game::run() {
     log(">>> Werewolf game ended <<<");
 }
 
-// player methods
+// initialize_players:
+// instantiate player object by @p names, and store to players_ list.
 void Game::initialize_players(const std::vector<std::string>& names) {
     // TODO: role assignment, connection status, liveness.
     std::lock_guard<std::mutex> lock(players_mutex_);
@@ -79,12 +80,44 @@ void Game::initialize_players(const std::vector<std::string>& names) {
     }
 }
 
+// alive_slots:
+// return list of alive slots.
 std::vector<int> Game::alive_slots() const {
     std::lock_guard<std::mutex> lock(players_mutex_);
     std::vector<int> slots;
     for(const Player& player : players_) {
         if(player.is_connected && player.is_alive && player.slot >=0) {
             slots.push_back(player.slot);
+        }
+    }
+    return slots;
+}
+
+// mark_connected:
+// mark the given slot as connected.
+bool Game::mark_connected(int slot) {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+
+    if(slot < 0 || slot >= static_cast<int>(players_.size())) {
+        return false;
+    }
+    if(!players_[slot].is_alive) {
+        return false;
+    }
+    players_[slot].is_connected=true;
+    return true;
+}
+
+// connected_slots:
+// returns a list of connected slots.
+std::vector<int> Game::connected_slots() const {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+
+    std::vector<int> slots;
+    slots.reserve(players_.size());
+    for(const Player& p : players_) {
+        if(p.is_connected && p.slot >= 0) {
+            slots.push_back(p.slot);
         }
     }
     return slots;
@@ -110,11 +143,37 @@ std::vector<std::string> Game::load_default_names() const {
     return names;
 }
 
+// private methods
+bool Game::send_to_slot(int slot, const std::string& msg) {
+    if(!comm_) {
+        log("send_to_slot failed: no communication backend", true, true, true);
+        return false;
+    }
+
+    if(!comm_->send_to_player(slot, msg)) {
+        log("send_to_slot failed for slot " + std::to_string(slot), true, true, true);
+        return false;
+    }
+    log("Game sent message to player " + std::to_string(slot) + ": " + msg);
+    return true;
+}
+
+void Game::broadcast_to_slots(const std::string& msg, const std::vector<int>& slots) {
+    for(int slot : slots) {
+        send_to_slot(slot, msg);
+    }
+}
+
 // phase: players waiting in the lobby
 void Game::lobby_phase() {
     auto names = load_default_names();
     initialize_players(names);
     log("Lobby initialized with " + std::to_string(names.size()) + " players.");
+
+    // tmp
+    mark_connected(0);
+    mark_connected(1);
+    broadcast_to_slots("Lobby Ready", connected_slots());
 }
 
 // methods

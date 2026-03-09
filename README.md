@@ -30,3 +30,7 @@ ctest
 
 ## Note
 Make sure to pass the CI test before merging into main.
+
+## TODO
+format and tidy
+chat_delay is a temporary fix for chat_phase taking msg from the fake_communication queue.

@@ -133,6 +133,49 @@ int Game::connected_player_count() const {
     return cnt;
 }
 
+std::string Game::role_name(Role r) const {
+    switch(r) {
+        case Role::Townperson: return "Townperson";
+        case Role::Witch: return "Witch";
+        case Role::Wolf: return "Wolf";
+    }
+    return "Unknown";
+}
+
+// assign_roles:
+// if deterministic flag is set in the config, we apply the following
+// roles to the role assignment:
+// - assign # of wolves
+// - assign witch
+// rest are townperson
+// if stochastic: all roles are assigned randomly.
+void Game::assign_roles() {
+    std::vector<int> slots = connected_slots();
+    if(slots.empty()) return;
+    if(!validate_assign_config(slots)) return;
+
+    {
+        std::lock_guard<std::mutex> lock(players_mutex_); // connected slot also acquire lock
+        if(cfg_.deterministic) {
+            // clear all role assignments
+            for(auto s : slots) {
+                players_[s].role = Role::Townperson;
+            }
+            // assign wolves
+            int i=0;
+            for(; i<cfg_.wolf_count; ++i) {
+                players_[slots[i]].role = Role::Wolf;
+            }
+            // assign witch
+            if(cfg_.has_witch) {
+                players_[slots[i]].role = Role::Witch;
+            }
+        }
+    }
+
+    log_assigned_slots(slots);
+}
+
 // load_names:
 // If cfg_.names_file is readable, load non-empty trimmed lines from it.
 // The returned list is not padded to cfg_.max_players.
@@ -197,12 +240,37 @@ void Game::lobby_phase() {
     log("Lobby initialized with " + std::to_string(names.size()) + " players.");
 
     // tmp
-    mark_connected(0);
-    mark_connected(1);
+    for(int i=0; i<players_.size(); ++i) {
+        mark_connected(i);
+    }
     broadcast_to_slots("Lobby Ready", connected_slots());
+    assign_roles();
 }
 
 // methods
+bool Game::validate_assign_config(std::vector<int>& slots) {
+    if(slots.empty()) return false;
+    int n = static_cast<int>(slots.size());
+    if(n < cfg_.wolf_count) {
+        log("Not enough players to play wolves.");
+        return false;
+    }
+    if(n < cfg_.wolf_count + int(cfg_.has_witch)) {
+        log("Not enough players to play witch.");
+        return false;
+    }
+    return true;
+}
+
+void Game::log_assigned_slots(std::vector<int>& slots) {
+    // log
+    for(int s : slots) {
+        Player p = players_[s];
+        log("player " + std::to_string(p.slot) + " is " + role_name(p.role));
+    }
+}
+
+
 void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to_moderator_log) {
     const auto now = std::time(nullptr);
     const std::string stamped = "(" + std::to_string(now) + "): " +  msg;

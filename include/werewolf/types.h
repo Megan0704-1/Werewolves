@@ -13,6 +13,7 @@ struct GameConfig {
     int  wolf_count = 2;
     bool has_witch = true;
     bool has_seer = true;
+    bool deterministic = false;
     bool silent_votes = true;
     bool randomize_names = true;
     std::string names_file = "names.txt";

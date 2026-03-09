@@ -126,5 +126,32 @@ TEST(GameTest, RunLobbyLoadNames) {
     EXPECT_THAT(log_content, HasSubstr("Lobby initialized with 3 players"));
 }
 
+TEST(GameTest, RoleAssignmentTest) {
+    GameConfig cfg;
+    cfg.max_players = 6;
+    cfg.wolf_count = 2;
+    cfg.has_witch = true;
+    cfg.deterministic = true;
+
+    testutils::TempDir tmp_dir;
+    cfg.game_log = tmp_dir.path() + "/game.log";
+    cfg.moderator_log = tmp_dir.path() + "/moderator.log";
+
+    auto fake = std::make_unique<FakeCommunication>();
+    auto* raw = fake.get();
+
+    Game game(std::move(fake), cfg);
+    game.run();
+
+    std::string log_content = testutils::ReadFileContents(cfg.game_log);
+    EXPECT_THAT(log_content, HasSubstr("player 0 is Wolf"));
+    EXPECT_THAT(log_content, HasSubstr("player 1 is Wolf"));
+    EXPECT_THAT(log_content, HasSubstr("player 2 is Witch"));
+    EXPECT_THAT(log_content, HasSubstr("player 3 is Townperson"));
+    EXPECT_THAT(log_content, HasSubstr("player 4 is Townperson"));
+    EXPECT_THAT(log_content, HasSubstr("player 5 is Townperson"));
+}
+
+
 
 } // namespace werewolf::test

@@ -23,7 +23,7 @@ Game::CleanupGuard::~CleanupGuard() {
 }
 
 // ctor & dtor
-Game::Game(std::unique_ptr<ICommunication> comm, GameConfig cfg): comm_(std::move(comm)), cfg_(std::move(cfg)) {}
+Game::Game(std::unique_ptr<ICommunication> comm, GameConfig cfg): comm_(std::move(comm)), cfg_(std::move(cfg)), round_cnt(0) {}
 
 Game::~Game() {
     request_stop();
@@ -60,15 +60,21 @@ void Game::run() {
 
     lobby_phase();
 
+    Winner winner = Winner::TBD;
     while(running_) {
+        log_rounds();
         night_phase();
-        const Winner winner = check_win();
+        winner = check_win();
         if(winner != Winner::TBD) {
             log_winner(winner);
             break;
         }
-        // tmporary break avoid inf loop
-        break;
+        day_phase();
+        winner = check_win();
+        if(winner != Winner::TBD) {
+            log_winner(winner);
+            break;
+        }
     }
 
     log(">>> Werewolf game ended <<<");
@@ -201,7 +207,16 @@ std::vector<int> Game::alive_slots_with_role(Role r) const {
     return target;
 }
 
-int Game::pick_victim(const std::vector<int>& slots) const {
+int Game::pick_night_victim(const std::vector<int>& slots) const {
+    if(cfg_.deterministic) {
+        return slots.front();
+    }
+
+    // tmp
+    return 0;
+}
+
+int Game::pick_day_target(const std::vector<int>& slots) const {
     if(cfg_.deterministic) {
         return slots.front();
     }
@@ -313,7 +328,7 @@ void Game::night_phase() {
     }
 
     sort(victims.begin(), victims.end());
-    const int victim = pick_victim(victims);
+    const int victim = pick_night_victim(victims);
     if(kill_player(victim)) {
         log("Night: player " + std::to_string(victim) + " was killed.");
     }
@@ -321,8 +336,27 @@ void Game::night_phase() {
     log("Night ends");
 }
 
+void Game::day_phase() {
+    log("Day begins");
+    // query
+    std::vector<int> slots = alive_slots();
+    if(slots.empty()) {
+        log("Day: no valid lynch target.");
+        log("Day ends");
+        return;
+    }
+    // chat
+    // vote
+    // mimic behavior after vote.
+    int victim = pick_day_target(slots);
+    if (kill_player(victim)) {
+        log("Day: player " + std::to_string(victim) + " was lynched.");
+    }
+    log("Day ends");
+}
+
 // rule
-const Winner Game::check_win() const {
+Winner Game::check_win() const {
     int wolves_cnt = static_cast<int>(alive_slots_with_role(Role::Wolf).size());
     int village_cnt = static_cast<int>(alive_slots().size()) - wolves_cnt;
 
@@ -366,6 +400,11 @@ void Game::log_winner(Winner winner) {
             log("--- Game continues ---");
             break;
     }
+}
+
+void Game::log_rounds() {
+    log("=== Round " + std::to_string(round_cnt) + " ===");
+    round_cnt++;
 }
 
 void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to_moderator_log) {

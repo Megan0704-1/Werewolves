@@ -44,6 +44,7 @@ private:
     std::unique_ptr<ICommunication> comm_;
     GameConfig cfg_;
     std::atomic<bool> running_{false};
+    int round_cnt = 0;
 
     std::ofstream game_log_;
     std::ofstream moderator_log_;
@@ -59,7 +60,8 @@ private:
     std::vector<int> connected_slots() const;
     int connected_player_count() const;
     std::vector<int> alive_slots_with_role(Role r) const;
-    int pick_victim(const std::vector<int>& slots) const;
+    int pick_night_victim(const std::vector<int>& slots) const;
+    int pick_day_target(const std::vector<int>& slots) const;
 
     // mutate
     bool mark_connected(int slot);
@@ -74,9 +76,10 @@ private:
     std::vector<std::string> load_default_names() const;
     void lobby_phase();
     void night_phase();
+    void day_phase();
 
     // end rule
-    const Winner check_win() const;
+    Winner check_win() const;
 
 
     // private methods
@@ -89,6 +92,7 @@ private:
     // logging methods
     void log_assigned_slots(std::vector<int>& slots);
     void log_winner(Winner winner);
+    void log_rounds();
     void log(const std::string& msg, bool to_stdout=true, bool to_game_log=true, bool to_moderator_log=true);
 };
 

@@ -3,7 +3,9 @@
 #include <string>
 
 namespace werewolf {
+
 enum class Role { Townperson, Wolf, Witch };
+enum class Winner { Village, Wolf, TBD };
 
 struct GameConfig {
     int  max_players = 16;
@@ -13,6 +15,7 @@ struct GameConfig {
     int  wolf_count = 2;
     bool has_witch = true;
     bool has_seer = true;
+    bool deterministic = false;
     bool silent_votes = true;
     bool randomize_names = true;
     std::string names_file = "names.txt";

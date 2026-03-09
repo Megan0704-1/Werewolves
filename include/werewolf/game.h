@@ -56,20 +56,28 @@ private:
     void initialize_players(const std::vector<std::string>& names);
 
     // query
+    std::optional<Player> get_player_info(int slot) const;
+    std::optional<Player> get_player_info(const std::string& name) const;
     std::vector<int> alive_slots() const;
     std::vector<int> connected_slots() const;
     int connected_player_count() const;
     std::vector<int> alive_slots_with_role(Role r) const;
-    int pick_night_victim(const std::vector<int>& slots) const;
-    int pick_day_target(const std::vector<int>& slots) const;
 
     // mutate
     bool mark_connected(int slot);
     void assign_roles();
     bool kill_player(int slot);
+    void handle_night_vote_result(const VoteResult& r);
+    void handle_day_vote_result(const VoteResult& r);
+    void connect_lobby_players();
 
     // helper
     std::string role_name(Role r) const;
+    VoteResult conduct_night_vote();
+    VoteResult conduct_day_vote();
+    VoteResult choose_night_victim(const std::vector<int>& voters, const std::vector<int>& slots) ;
+    VoteResult choose_day_target(const std::vector<int>& voters, const std::vector<int>& slots) ;
+    VoteResult collect_votes(const std::vector<int>& voters, const std::vector<int>& cands, int duration);
 
     // phases
     std::vector<std::string> load_names() const;
@@ -85,6 +93,7 @@ private:
     // private methods
     bool send_to_slot(int slot, const std::string& msg);
     void broadcast_to_slots(const std::string& msg, const std::vector<int>& slots);
+    std::optional<std::string> recv_from_slot(int slot);
 
     // validation
     bool validate_assign_config(std::vector<int>& slots) ;

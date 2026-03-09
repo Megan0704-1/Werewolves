@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <queue>
 
 namespace werewolf::test {
 
@@ -17,6 +18,10 @@ public:
 
     std::vector<std::pair<int, std::string>> sent_to_player;
     std::vector<std::pair<int, std::string>> sent_to_server_msgs;
+
+    std::vector<std::deque<std::string>> slot_msg_q;
+
+    explicit FakeCommunication(int n_players=4): slot_msg_q(n_players) {}
 
     bool initialize(int num_slots) override {
         ++initialize_called;
@@ -33,8 +38,11 @@ public:
         return true;
     }
 
-    std::optional<std::string> recv_from_player(int) override {
-        return std::nullopt;
+    std::optional<std::string> recv_from_player(int slot) override {
+        auto &q = slot_msg_q.at(slot);
+        if(q.empty()) return std::nullopt;
+        std::string msg = q.front(); q.pop_front();
+        return msg;
     }
 
     bool send_to_server(int slot, const std::string& msg) override {
@@ -44,6 +52,16 @@ public:
 
     std::optional<std::string> recv_from_server(int) override {
         return std::nullopt;
+    }
+
+    void push_msg(int slot, const std::string& msg) {
+        slot_msg_q.at(slot).push_back(msg);
+    }
+
+    void connect_automatically() {
+        for(int i=0; i<slot_msg_q.size(); ++i) {
+            push_msg(i, "connect");
+        }
     }
 };
 

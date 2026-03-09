@@ -86,6 +86,7 @@ private:
     void night_phase();
     void day_phase();
     void dead_phase(int slot);
+    void chat_phase(const std::vector<int>& slots);
 
     // end rule
     Winner check_win() const;

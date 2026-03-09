@@ -17,6 +17,7 @@ struct GameConfig {
     int  max_players = 16;
     int  lobby_wait_seconds = 1;
     int  vote_duration = 1;
+    int  chat_duration = 1;
     int  death_speech_seconds = 1;
     int  wolf_count = 2;
     bool has_witch = true;
@@ -30,6 +31,12 @@ struct GameConfig {
     std::string moderator_log = "moderator.log";
     std::string vote_prefix="vote: ";
     std::string chat_prefix="chat: ";
+    
+    // Current implementation assumes phase-separated input:
+    // chat messages arrive during chat_phase, vote messages during vote collection.
+    // Out-of-phase messages are not buffered.
+    int  chat_delay_ms = 100;
+
 };
 
 } // namespace werewolf

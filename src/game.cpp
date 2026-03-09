@@ -515,15 +515,15 @@ void Game::lobby_phase() {
 // get victim sets
 // choose smallest slot as victim (deterministic_vote)
 void Game::night_phase() {
+    chat_phase(alive_slots_with_role(Role::Wolf));
     VoteResult result = conduct_night_vote();
     handle_night_vote_result(result);
-
     log("Night ends");
 }
 
 void Game::day_phase() {
     log("Day begins");
-    // query
+    chat_phase(alive_slots());
     VoteResult result = conduct_day_vote();
     handle_day_vote_result(result);
     log("Day ends");
@@ -541,6 +541,33 @@ void Game::dead_phase(int slot) {
             broadcast_to_slots(final_words, alive_slots());
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
+// chat_phase:
+// loop through given slot vector, check if msgs are prefixed with chat<colon><space>
+// if the condition is true, we get the actual text from the msg and broadcast to everyone
+// other than the slot itself.
+void Game::chat_phase(const std::vector<int>& slots) {
+    auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.chat_duration);
+    while(std::chrono::steady_clock().now() < timeout) {
+        for(int slot : slots) {
+            if(auto msg = recv_from_slot(slot); msg && msg->rfind(cfg_.chat_prefix, 0) == 0) {
+                std::string text = msg->substr(cfg_.chat_prefix.size());
+                if(text.empty()) continue;
+
+                auto p = get_player_info(slot);
+                if(!p) continue;
+
+                std::string content = p->name + ": " + text;
+                log(content);
+
+                std::vector<int> others = slots;
+                others.erase(std::remove(others.begin(), others.end(), slot), others.end());
+                broadcast_to_slots(content, others);
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.chat_delay_ms));
     }
 }
 

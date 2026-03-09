@@ -17,7 +17,7 @@ struct GameConfig {
     int  max_players = 16;
     int  lobby_wait_seconds = 1;
     int  vote_duration = 1;
-    int  death_speech_seconds = 15;
+    int  death_speech_seconds = 1;
     int  wolf_count = 2;
     bool has_witch = true;
     bool has_seer = true;

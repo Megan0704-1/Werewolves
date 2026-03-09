@@ -152,6 +152,32 @@ TEST(GameTest, RoleAssignmentTest) {
     EXPECT_THAT(log_content, HasSubstr("player 5 is Townperson"));
 }
 
+TEST(GameTest, RunDeterministic) {
+    GameConfig cfg;
+    cfg.max_players = 6;
+    cfg.wolf_count = 2;
+    cfg.has_witch = true;
+    cfg.deterministic = true;
+
+    testutils::TempDir tmp_dir;
+    cfg.game_log = tmp_dir.path() + "/game.log";
+    cfg.moderator_log = tmp_dir.path() + "/moderator.log";
+
+    auto fake = std::make_unique<FakeCommunication>();
+    auto* raw = fake.get();
+
+    Game game(std::move(fake), cfg);
+    game.run();
+
+    std::string log_content = testutils::ReadFileContents(cfg.game_log);
+    EXPECT_THAT(log_content, HasSubstr("=== Round 0 ==="));
+    EXPECT_THAT(log_content, HasSubstr("Night: player 2 was killed."));
+    EXPECT_THAT(log_content, HasSubstr("Day: player 0 was lynched."));
+    EXPECT_THAT(log_content, HasSubstr("=== Round 1 ==="));
+    EXPECT_THAT(log_content, HasSubstr("Night: player 3 was killed."));
+    EXPECT_THAT(log_content, HasSubstr("Day: player 1 was lynched."));
+    EXPECT_THAT(log_content, HasSubstr("--- Village Win ---"));
+}
 
 
 } // namespace werewolf::test

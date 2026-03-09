@@ -3,7 +3,9 @@
 #include <string>
 
 namespace werewolf {
+
 enum class Role { Townperson, Wolf, Witch };
+enum class Winner { Village, Wolf, TBD };
 
 struct GameConfig {
     int  max_players = 16;

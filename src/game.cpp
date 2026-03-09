@@ -60,6 +60,17 @@ void Game::run() {
 
     lobby_phase();
 
+    while(running_) {
+        night_phase();
+        const Winner winner = check_win();
+        if(winner != Winner::TBD) {
+            log_winner(winner);
+            break;
+        }
+        // tmporary break avoid inf loop
+        break;
+    }
+
     log(">>> Werewolf game ended <<<");
 }
 
@@ -176,6 +187,41 @@ void Game::assign_roles() {
     log_assigned_slots(slots);
 }
 
+std::vector<int> Game::alive_slots_with_role(Role r) const {
+    std::vector<int> alives = alive_slots();
+    std::vector<int> target;
+    {
+        std::lock_guard<std::mutex> lock(players_mutex_);
+        for(int s : alives) {
+            if(players_[s].is_connected && players_[s].role == r) {
+                target.push_back(s);
+            }
+        }
+    }
+    return target;
+}
+
+int Game::pick_victim(const std::vector<int>& slots) const {
+    if(cfg_.deterministic) {
+        return slots.front();
+    }
+
+    // tmp
+    return 0;
+}
+
+bool Game::kill_player(const int slot) {
+    std::lock_guard<std::mutex> lock(players_mutex_);
+    if (slot < 0 || slot >= static_cast<int>(players_.size())) {
+        return false;
+    }
+    if (!players_[slot].is_alive) {
+        return false;
+    }
+    players_[slot].is_alive = false;
+    return true;
+}
+
 // load_names:
 // If cfg_.names_file is readable, load non-empty trimmed lines from it.
 // The returned list is not padded to cfg_.max_players.
@@ -247,6 +293,44 @@ void Game::lobby_phase() {
     assign_roles();
 }
 
+// night_phase:
+// get wolves sets
+// get victim sets
+// choose smallest slot as victim (deterministic)
+void Game::night_phase() {
+    std::vector<int> wolves = alive_slots_with_role(Role::Wolf);
+    if (wolves.empty()) {
+        log("Night: no wolves alive.");
+        return;
+    }
+
+    std::vector<int> witch = alive_slots_with_role(Role::Witch);
+    std::vector<int> victims = alive_slots_with_role(Role::Townperson);
+    victims.insert(victims.end(), witch.begin(), witch.end());
+    if (victims.empty()) {
+        log("Night: no valid victim.");
+        return;
+    }
+
+    sort(victims.begin(), victims.end());
+    const int victim = pick_victim(victims);
+    if(kill_player(victim)) {
+        log("Night: player " + std::to_string(victim) + " was killed.");
+    }
+
+    log("Night ends");
+}
+
+// rule
+const Winner Game::check_win() const {
+    int wolves_cnt = static_cast<int>(alive_slots_with_role(Role::Wolf).size());
+    int village_cnt = static_cast<int>(alive_slots().size()) - wolves_cnt;
+
+    if(wolves_cnt == 0) return Winner::Village;
+    if(wolves_cnt >= village_cnt) return Winner::Wolf;
+    return Winner::TBD;
+}
+
 // methods
 bool Game::validate_assign_config(std::vector<int>& slots) {
     if(slots.empty()) return false;
@@ -270,6 +354,19 @@ void Game::log_assigned_slots(std::vector<int>& slots) {
     }
 }
 
+void Game::log_winner(Winner winner) {
+    switch(winner) {
+        case Winner::Village:
+            log("--- Village Win ---");
+            break;
+        case Winner::Wolf:
+            log("--- Wolves Win ---");
+            break;
+        case Winner::TBD:
+            log("--- Game continues ---");
+            break;
+    }
+}
 
 void Game::log(const std::string& msg, bool to_stdout, bool to_game_log, bool to_moderator_log) {
     const auto now = std::time(nullptr);

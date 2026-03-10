@@ -179,11 +179,11 @@ TEST(UnitTest, RunDeterministic) {
 
     std::string log_content = testutils::ReadFileContents(cfg.game_log);
     EXPECT_THAT(log_content, HasSubstr("=== Round 0 ==="));
-    EXPECT_THAT(log_content, HasSubstr("Night: player 2 was killed."));
-    EXPECT_THAT(log_content, HasSubstr("Day: player 0 was lynched."));
+    EXPECT_THAT(log_content, HasSubstr("Night: player2 was killed."));
+    EXPECT_THAT(log_content, HasSubstr("Day: player0 was lynched."));
     EXPECT_THAT(log_content, HasSubstr("=== Round 1 ==="));
-    EXPECT_THAT(log_content, HasSubstr("Night: player 3 was killed."));
-    EXPECT_THAT(log_content, HasSubstr("Day: player 1 was lynched."));
+    EXPECT_THAT(log_content, HasSubstr("Night: player3 was killed."));
+    EXPECT_THAT(log_content, HasSubstr("Day: player1 was lynched."));
     EXPECT_THAT(log_content, HasSubstr("--- Village Win ---"));
 }
 

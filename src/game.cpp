@@ -466,7 +466,7 @@ bool Game::send_to_slot(int slot, const std::string& msg) {
         log("send_to_slot failed for slot " + std::to_string(slot), true, true, true);
         return false;
     }
-    log("Game sent message to player " + std::to_string(slot) + ": " + msg);
+    log("Game sent message to " + get_player_info(slot)->name + ": " + msg);
     return true;
 }
 

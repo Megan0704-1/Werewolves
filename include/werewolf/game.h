@@ -38,6 +38,7 @@ private:
         Role role = Role::Townperson;
         bool is_connected = false;
         bool is_alive = true;
+        Special power = Special();
     };
 
     // members
@@ -66,8 +67,9 @@ private:
     // mutate
     bool mark_connected(int slot);
     void assign_roles();
+    void notify_roles();
     bool kill_player(int slot);
-    void handle_night_vote_result(const VoteResult& r);
+    void handle_night_vote_result(const WitchAction& m, const VoteResult& r);
     void handle_day_vote_result(const VoteResult& r);
     void connect_lobby_players();
 
@@ -75,6 +77,7 @@ private:
     std::string role_name(Role r) const;
     VoteResult conduct_night_vote();
     VoteResult conduct_day_vote();
+    WitchAction witch_magic_power(const VoteResult result);
     VoteResult choose_night_victim(const std::vector<int>& voters, const std::vector<int>& slots) ;
     VoteResult choose_day_target(const std::vector<int>& voters, const std::vector<int>& slots) ;
     VoteResult collect_votes(const std::vector<int>& voters, const std::vector<int>& cands, int duration);
@@ -98,7 +101,8 @@ private:
     void announce_death(int slot, const std::string& when);
 
     // validation
-    bool validate_assign_config(std::vector<int>& slots) ;
+    bool valid_assign_config(std::vector<int>& slots) ;
+    bool valid_player_numbers() ;
 
     // logging methods
     void log_assigned_slots(std::vector<int>& slots);

@@ -83,6 +83,7 @@ void Game::run() {
     }
 
     log(">>> Werewolf game ended <<<");
+    broadcast_to_slots("close", connected_slots());
 }
 
 // initialize_players:
@@ -126,6 +127,7 @@ std::optional<Game::Player> Game::get_player_info(const std::string& name) const
 
 
 // alive_slots:
+// alive slots is defined as slots from players who is_alive and is_connected.
 // return list of alive slots.
 std::vector<int> Game::alive_slots() const {
     std::lock_guard<std::mutex> lock(players_mutex_);
@@ -227,6 +229,68 @@ VoteResult Game::conduct_day_vote() {
     return collect_votes(slots, slots, cfg_.vote_duration);
 }
 
+// witch_magic_power
+// Given a vote result, returns if witch healed, poisoned, or skip.
+// Note. witch action is independent to wolves vote.
+// Only excpetion is witch can only heal a player when it is killed by wolves.
+WitchAction Game::witch_magic_power(const VoteResult result) {
+    // return object
+    WitchAction action = WitchAction();
+    bool has_victim = result.status == VoteStatus::Decided;
+
+    // get copy of witch player 
+    auto witch_players = alive_slots_with_role(Role::Witch);
+    if(witch_players.empty()) return action;
+    auto witch = get_player_info(witch_players.front());
+
+    // msg
+    std::string msg;
+    if (auto victim = get_player_info(result.target); victim) {
+        msg += "The wolves chose " + victim->name + " tonight.\n";
+    } else {
+        msg += "The wolves did not kill anyone tonight.\n";
+    }
+    msg += "Witch, decide one of your actions:\n+ skip";
+    if (witch->power.heal_power > 0 && has_victim) {
+        msg += "\n+ heal";
+    }
+    if (witch->power.poison_power > 0) {
+        msg += "\n+ poison: <name>";
+    }
+
+    // send msg to witch
+    send_to_slot(witch->slot, msg);
+
+    // get msg from witch
+    auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.witch_decide_seconds);
+    while(std::chrono::steady_clock().now() < timeout) {
+        if(auto spell = recv_from_slot(witch->slot); spell && *spell != "skip") {
+            if(*spell == "heal" && has_victim && witch->power.heal_power > 0) {
+                witch->power.heal_power--;
+                action.magic = WitchAction::Magic::Healed;
+                break;
+            } else if (spell->rfind(cfg_.poison_prefix, 0) == 0 && witch->power.poison_power > 0) {
+                std::string poison_target = spell->substr(cfg_.poison_prefix.size());
+                if(auto target = get_player_info(poison_target); target && target->is_alive) {
+                    witch->power.poison_power--;
+                    action.magic = WitchAction::Magic::Poisoned;
+                    action.poison_target = target->slot;
+                    break;
+                }
+            }
+        } 
+        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
+    }
+
+    // mutate actual witch player
+    {
+        std::lock_guard<std::mutex> lock(players_mutex_);
+        players_[witch_players.front()].power = witch->power;
+    }
+
+    return action;
+}
+
 // collect_votes:
 // caller ensures voters and candidates are all connected slots
 VoteResult Game::collect_votes(const std::vector<int>& voters, const std::vector<int>& candidates, int duration) {
@@ -257,7 +321,7 @@ VoteResult Game::collect_votes(const std::vector<int>& voters, const std::vector
             votes[p->slot]++;
             voted[v] = true;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
     }
 
     int target = -1, max_vote = 0;
@@ -289,7 +353,7 @@ VoteResult Game::collect_votes(const std::vector<int>& voters, const std::vector
 void Game::assign_roles() {
     std::vector<int> slots = connected_slots();
     if(slots.empty()) return;
-    if(!validate_assign_config(slots)) return;
+    if(!valid_assign_config(slots)) return;
 
     {
         std::lock_guard<std::mutex> lock(players_mutex_); // connected slot also acquire lock
@@ -306,11 +370,32 @@ void Game::assign_roles() {
             // assign witch
             if(cfg_.has_witch) {
                 players_[slots[i]].role = Role::Witch;
+                players_[slots[i]].power.heal_power = cfg_.heal_power;
+                players_[slots[i]].power.poison_power = cfg_.poison_power;
             }
         }
     }
 
     log_assigned_slots(slots);
+}
+
+void Game::notify_roles() {
+    std::vector<int> participants = connected_slots();
+    std::vector<int> wolves = alive_slots_with_role(Role::Wolf);
+    for(int p : participants) {
+        auto player = get_player_info(p);
+        if(!player) continue;
+        std::string msg = "Your role is " + role_name(player->role);
+        if(player->role == Role::Wolf) {
+            msg += ". Fellow wolves are: ";
+            for(int wolf : wolves) {
+                if(auto fellow = get_player_info(wolf); fellow && wolf != p) {
+                    msg += " " + fellow->name;
+                }
+            }
+        }
+        send_to_slot(p, msg);
+    }
 }
 
 std::vector<int> Game::alive_slots_with_role(Role r) const {
@@ -365,22 +450,44 @@ bool Game::kill_player(const int slot) {
     return true;
 }
 
-void Game::handle_night_vote_result(const VoteResult& result) {
-    switch(result.status) {
-        case VoteStatus::Decided:
-            if(kill_player(result.target)) {
-                announce_death(result.target, "night");
-                dead_phase(result.target);
+void Game::handle_night_vote_result(const WitchAction& action, const VoteResult& result) {
+    auto sentence = [&](VoteResult result, const std::string& phase) {
+        switch(result.status) {
+            case VoteStatus::Decided:
+                if(kill_player(result.target)) {
+                    announce_death(result.target, phase);
+                    dead_phase(result.target);
+                }
+                break;
+            case VoteStatus::Tie:
+                // stochastic / deterministic_vote pick one victim
+                // currently no-op
+                log("Night: vote tied. Nobody was killed.");
+                break;
+            case VoteStatus::NoDecision:
+                log("Night: no decision was made.");
+                break;
+        }
+    };
+
+    switch(action.magic) {
+        case WitchAction::Magic::Healed:
+            log("Witch healed " + get_player_info(result.target)->name);
+            return;
+        case WitchAction::Magic::Poisoned: {
+                // sentence wolf victim first
+                sentence(result, "night");
+                VoteResult poison_result = VoteResult();
+                poison_result.status = VoteStatus::Decided;
+                poison_result.target = action.poison_target;
+
+                // then sentence poisoned victim
+                sentence(poison_result, "poison");
+                return;
             }
-            break;
-        case VoteStatus::Tie:
-            // stochastic / deterministic_vote pick one victim
-            // currently no-op
-            log("Night: vote tied. Nobody was killed.");
-            break;
-        case VoteStatus::NoDecision:
-            log("Night: no decision was made.");
-            break;
+        case WitchAction::Magic::Skip:
+            sentence(result, "night");
+            return;
     }
 }
 
@@ -393,11 +500,12 @@ void Game::handle_day_vote_result(const VoteResult& result) {
             }
             break;
         case VoteStatus::Tie:
-            // if tie for day vote, nobody will be killed.
             log("Day: vote tied. Nobody was targeted.");
+            broadcast_to_slots("The vote was inconclusive, nobody was lynched.", alive_slots());
             break;
         case VoteStatus::NoDecision:
             log("Day: no decision was made.");
+            broadcast_to_slots("No valid votes were cast.", alive_slots());
             break;
     }
 }
@@ -415,7 +523,7 @@ void Game::connect_lobby_players() {
                 send_to_slot(p.slot, "Greeting from the game. You are connected, your slot is: " + std::to_string(p.slot));
             }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
     }
 }
 
@@ -493,6 +601,8 @@ void Game::announce_death(int slot, const std::string& when) {
         msg = "Night: " + info->name + " was killed.";
     } else if(when == "day") {
         msg = "Day: " + info->name + " was lynched.";
+    } else if(when == "poison") {
+        msg = "Night: " + info->name + " was poisoned.";
     } else {
         msg = info->name + " died.";
     }
@@ -501,13 +611,24 @@ void Game::announce_death(int slot, const std::string& when) {
 }
 
 // phase: players waiting in the lobby
+
+// lobby_phase:
+// load names from txt files or fallback to default
+// instantiate players_ list object from the names.
+// connect the players.
+// assign roles to the `connected` players.
 void Game::lobby_phase() {
     auto names = load_names();
     initialize_players(names);
     log("Lobby initialized with " + std::to_string(names.size()) + " players.");
     connect_lobby_players();
+    if(!valid_player_numbers()) {
+        request_stop();
+        return;
+    }
     broadcast_to_slots("Lobby Ready", connected_slots());
     assign_roles();
+    notify_roles();
 }
 
 // night_phase:
@@ -515,20 +636,30 @@ void Game::lobby_phase() {
 // get victim sets
 // choose smallest slot as victim (deterministic_vote)
 void Game::night_phase() {
+    log("Night begins");
+    broadcast_to_slots("Night starts", alive_slots());
+
     chat_phase(alive_slots_with_role(Role::Wolf));
     VoteResult result = conduct_night_vote();
-    handle_night_vote_result(result);
+
+    // witch
+    auto action = witch_magic_power(result);
+    handle_night_vote_result(action, result);
+
     log("Night ends");
 }
 
 void Game::day_phase() {
     log("Day begins");
+    broadcast_to_slots("Day starts", alive_slots());
+
     chat_phase(alive_slots());
     VoteResult result = conduct_day_vote();
     handle_day_vote_result(result);
     log("Day ends");
 }
 
+// return immediately after recving the first dead note.
 void Game::dead_phase(int slot) {
     auto info = get_player_info(slot);
     if(!info) return;
@@ -539,8 +670,9 @@ void Game::dead_phase(int slot) {
             std::string final_words = "Final words from " + info->name + ": " + *msg;
             log(final_words);
             broadcast_to_slots(final_words, alive_slots());
+            return;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
     }
 }
 
@@ -551,6 +683,7 @@ void Game::dead_phase(int slot) {
 void Game::chat_phase(const std::vector<int>& slots) {
     auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.chat_duration);
     while(std::chrono::steady_clock().now() < timeout) {
+        log("chat");
         for(int slot : slots) {
             if(auto msg = recv_from_slot(slot); msg && msg->rfind(cfg_.chat_prefix, 0) == 0) {
                 std::string text = msg->substr(cfg_.chat_prefix.size());
@@ -567,7 +700,7 @@ void Game::chat_phase(const std::vector<int>& slots) {
                 broadcast_to_slots(content, others);
             }
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.chat_delay_ms));
+        std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
     }
 }
 
@@ -582,7 +715,7 @@ Winner Game::check_win() const {
 }
 
 // methods
-bool Game::validate_assign_config(std::vector<int>& slots) {
+bool Game::valid_assign_config(std::vector<int>& slots) {
     if(slots.empty()) return false;
     int n = static_cast<int>(slots.size());
     if(n < cfg_.wolf_count) {
@@ -591,6 +724,15 @@ bool Game::validate_assign_config(std::vector<int>& slots) {
     }
     if(n < cfg_.wolf_count + int(cfg_.has_witch)) {
         log("Not enough players to play witch.");
+        return false;
+    }
+    return true;
+}
+
+bool Game::valid_player_numbers() {
+    if(connected_player_count() < 4) {
+        broadcast_to_slots("Not enough players (need at least 4). Game cancelled", connected_slots());
+        broadcast_to_slots("close", connected_slots());
         return false;
     }
     return true;

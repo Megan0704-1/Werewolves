@@ -56,7 +56,7 @@ void Game::run() {
     }
 
     if(!comm_->initialize(cfg_.max_players)) {
-        std::cerr << "Failed to initialize communication.\n";
+        std::cerr << "Failed to initialize communication when game runs.\n";
         return;
     }
     scope_guard.is_initialized = true;
@@ -513,6 +513,7 @@ void Game::handle_day_vote_result(const VoteResult& result) {
 // connect_lobby_players:
 // within wait seconds, scan all players, if recv msg : `connected`, mark it as connected, send greeting msg to the player.
 void Game::connect_lobby_players() {
+    log("Connecting players...");
     auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.lobby_wait_seconds);
     while(std::chrono::steady_clock().now() < timeout && running_) {
         for(const Player& p : players_) {

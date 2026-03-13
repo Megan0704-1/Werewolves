@@ -33,3 +33,9 @@ gtest_discover_tests(test_template)
 gtest_discover_tests(test_pipe)
 gtest_discover_tests(test_unit)
 gtest_discover_tests(test_game)
+
+# add e2e tests
+add_test(
+    NAME test_pipe_e2e
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/pipe/e2e/test_pipe_e2e.sh
+)

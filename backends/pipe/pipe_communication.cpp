@@ -37,10 +37,15 @@ static std::string GetS2PFIFOPath(const std::string& root, int slot) {
 }
 
 // ctor & dtor
-PipeCommunication::PipeCommunication(std::string pipe_root_dir, bool create_fifos) : pipe_root_dir_(pipe_root_dir), create_fifos_(create_fifos) {
+PipeCommunication::PipeCommunication(bool create_fifos, std::string pipe_root_dir) : pipe_root_dir_(pipe_root_dir), create_fifos_(create_fifos) {
     // make sure root dir ends with back slash
-    if(!pipe_root_dir_.empty() && pipe_root_dir_.back() != '/') {
+    if(pipe_root_dir_.empty() || pipe_root_dir_.back() != '/') {
         pipe_root_dir_ += '/';
+    }
+
+    if(!fs::exists(pipe_root_dir_)) {
+        if(fs::create_directories(pipe_root_dir_)) std::cout << pipe_root_dir_ + " create successfully" << std::endl;
+        else std::cout << "Failed to create " + pipe_root_dir_ << std::endl;
     }
 }
 
@@ -48,8 +53,8 @@ PipeCommunication::~PipeCommunication() {
     shutdown();
 }
 
-std::unique_ptr<ICommunication> make_pipe_communication(const std::string& pipe_root_dir, bool create_fifos) {
-    return std::make_unique<PipeCommunication>(pipe_root_dir, create_fifos);
+std::unique_ptr<ICommunication> make_pipe_communication(bool create_fifos, const std::string& pipe_root_dir) {
+    return std::make_unique<PipeCommunication>(create_fifos, pipe_root_dir);
 }
 // private methods impl
 
@@ -144,11 +149,17 @@ bool PipeCommunication::initialize(int num_slots) {
         if(!ensure_fifo(p2s_fifo_[i])) return false;
         if(!ensure_fifo(s2p_fifo_[i])) return false;
         // open fifo once in the communication cycle to avoid blocking reads and writes.
-        p2s_fd_[i] = open(p2s_fifo_[i].c_str(), O_RDWR);
-        s2p_fd_[i] = open(s2p_fifo_[i].c_str(), O_RDWR);
+        p2s_fd_[i] = open(p2s_fifo_[i].c_str(), O_RDWR | O_NONBLOCK);
+        s2p_fd_[i] = open(s2p_fifo_[i].c_str(), O_RDWR | O_NONBLOCK);
 
-        if(p2s_fd_[i] < 0) return false;
-        if(s2p_fd_[i] < 0) return false;
+        if(p2s_fd_[i] < 0) {
+            std::cerr << "Permission denied, opening: " + p2s_fifo_[i] << "\n";
+            return false;
+        }
+        if(s2p_fd_[i] < 0) {
+            std::cerr << "Permission denied, opening: " + s2p_fifo_[i] << "\n";
+            return false;
+        }
     }
 
     alive_ = true;
@@ -156,12 +167,27 @@ bool PipeCommunication::initialize(int num_slots) {
 }
 
 void PipeCommunication::shutdown() {
+    if(!alive_) return;
+
+    // close fd
     for(int i=0; i<num_slots_; ++i) {
-        std::error_code ec;
-        fs::remove_all(GetP2SFIFODir(pipe_root_dir_, i), ec);
-        fs::remove_all(GetS2PFIFODir(pipe_root_dir_, i), ec);
-        close(p2s_fd_[i]);
-        close(s2p_fd_[i]);
+        if(p2s_fd_[i] >= 0) {
+            close(p2s_fd_[i]);
+            p2s_fd_[i] = -1;
+        }
+        if(s2p_fd_[i] >= 0) {
+            close(s2p_fd_[i]);
+            s2p_fd_[i] = -1;
+        }
+    }
+    // only remove dir if create_fifos
+    if(create_fifos_) {
+        for(int i=0; i<num_slots_; ++i) {
+            std::error_code ec;
+            fs::remove_all(GetP2SFIFODir(pipe_root_dir_, i), ec);
+            fs::remove_all(GetS2PFIFODir(pipe_root_dir_, i), ec);
+            fs::remove_all(pipe_root_dir_, ec);
+        }
     }
     alive_ = false;
 }

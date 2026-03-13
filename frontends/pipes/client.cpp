@@ -6,6 +6,8 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <poll.h>
+#include <unistd.h>
 
 namespace werewolf::frontends {
 
@@ -65,6 +67,7 @@ ClientOptions ParseClientArgs(int argc, char* argv[]) {
 // 2. (if successfully connected) launch a listener thread, keep pooling msg from server. (shutdown communication if game closed.)
 // 3. another thread getline from the client, send to server if any.
 int RunClient(const ClientOptions& options, const ClientCommunicationFactory& factory) {
+    running_ref.store(true);
     if(options.show_help) return 0;
 
     if(options.slot < 0) {
@@ -127,12 +130,28 @@ int RunClient(const ClientOptions& options, const ClientCommunicationFactory& fa
     });
 
     std::string line;
-    while(running_ref.load() && std::getline(std::cin, line)) {
-        if(!running_ref.load()) break;
-        {
-            std::lock_guard<std::mutex> lock(send_mutex);
-            comm->send_to_server(options.slot, line);
+    while(running_ref.load()) {
+        struct pollfd pfd = { STDIN_FILENO, POLLIN, 0 };
+        // waiting for keyboard input for 100ms
+        int ret = poll(&pfd, 1, 100);
+
+        if(ret < 0 && errno != EINTR) {
+            {
+                std::lock_guard<std::mutex> lock(send_mutex);
+                std::cerr << "poll(stdin) failed\n";
+            }
+            break;
         }
+
+        if(ret > 0 && (pfd.revents & (POLLIN | POLLHUP))) {
+            if(!std::getline(std::cin, line)) break;
+            if(!running_ref.load()) break;
+            {
+                std::lock_guard<std::mutex> lock(send_mutex);
+                comm->send_to_server(options.slot, line);
+            }
+        }
+        
     }
 
     running_ref.store(false);

@@ -294,6 +294,7 @@ WitchAction Game::witch_magic_power(const VoteResult result) {
 // collect_votes:
 // caller ensures voters and candidates are all connected slots
 VoteResult Game::collect_votes(const std::vector<int>& voters, const std::vector<int>& candidates, int duration) {
+    log("[vote] starts");
     VoteResult vr;
 
     auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(duration);
@@ -340,6 +341,8 @@ VoteResult Game::collect_votes(const std::vector<int>& voters, const std::vector
         vr.status = VoteStatus::Decided;
         vr.target = target;
     }
+
+    log("[vote] ends");
     return vr;
 }
 
@@ -682,9 +685,9 @@ void Game::dead_phase(int slot) {
 // if the condition is true, we get the actual text from the msg and broadcast to everyone
 // other than the slot itself.
 void Game::chat_phase(const std::vector<int>& slots) {
+    log("[chat] starts");
     auto timeout = std::chrono::steady_clock().now() + std::chrono::seconds(cfg_.chat_duration);
     while(std::chrono::steady_clock().now() < timeout) {
-        log("chat");
         for(int slot : slots) {
             if(auto msg = recv_from_slot(slot); msg && msg->rfind(cfg_.chat_prefix, 0) == 0) {
                 std::string text = msg->substr(cfg_.chat_prefix.size());
@@ -703,6 +706,7 @@ void Game::chat_phase(const std::vector<int>& slots) {
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
     }
+    log("[chat] ends.");
 }
 
 // rule

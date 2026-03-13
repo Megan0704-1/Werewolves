@@ -35,7 +35,7 @@ struct GameConfig {
     int  death_speech_seconds = 1;
     int  wolf_count = 2;
     bool has_witch = true;
-    bool witch_decide_seconds = 0;
+    int witch_decide_seconds = 0;
     int heal_power = 1;
     int poison_power = 1;
 

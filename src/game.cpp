@@ -7,6 +7,7 @@
 #include <utility>
 #include <thread>
 #include <algorithm>
+#include <random>
 
 namespace werewolf {
 
@@ -360,22 +361,26 @@ void Game::assign_roles() {
 
     {
         std::lock_guard<std::mutex> lock(players_mutex_); // connected slot also acquire lock
-        if(cfg_.deterministic_assign) {
-            // clear all role assignments
-            for(auto s : slots) {
-                players_[s].role = Role::Townperson;
-            }
-            // assign wolves
-            int i=0;
-            for(; i<cfg_.wolf_count; ++i) {
-                players_[slots[i]].role = Role::Wolf;
-            }
-            // assign witch
-            if(cfg_.has_witch) {
-                players_[slots[i]].role = Role::Witch;
-                players_[slots[i]].power.heal_power = cfg_.heal_power;
-                players_[slots[i]].power.poison_power = cfg_.poison_power;
-            }
+                                                          // clear all role assignments
+        for(auto s : slots) {
+            players_[s].role = Role::Townperson;
+        }
+        // assign wolves
+        if(!cfg_.deterministic_assign) {
+            std::random_device rd;
+            std::mt19937 rng(rd());
+            std::shuffle(slots.begin(), slots.end(), rng);
+        }
+
+        int i=0;
+        for(; i<cfg_.wolf_count; ++i) {
+            players_[slots[i]].role = Role::Wolf;
+        }
+        // assign witch
+        if(cfg_.has_witch) {
+            players_[slots[i]].role = Role::Witch;
+            players_[slots[i]].power.heal_power = cfg_.heal_power;
+            players_[slots[i]].power.poison_power = cfg_.poison_power;
         }
     }
 
@@ -550,7 +555,10 @@ std::vector<std::string> Game::load_names() const {
             line.pop_back();
         }
         if(!line.empty()) names.push_back(line);
+        if(static_cast<int>(names.size()) >= cfg_.max_players) break;
     }
+    
+    if(names.empty()) return load_default_names();
 
     return names;
 }

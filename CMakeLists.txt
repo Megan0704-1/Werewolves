@@ -13,12 +13,8 @@ target_include_directories(werewolf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/incl
 # load all backends
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/backends)
 
-# apps
-# add_executable(werewolf_server apps/server.cpp)
-# add_executable(werewolf_client apps/client.cpp)
-# 
-# target_link_libraries(werewolf_server werewolf_core)
-# target_link_libraries(werewolf_client werewolf_core)
+# frontend 
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/frontends)
 
 # tests
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/tests)

@@ -7,7 +7,7 @@
 // test init and close
 TEST(PipeCommunicationTest, InitializeShutdown) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(tmp.path(), true);
+    auto comm = werewolf::make_pipe_communication(true, tmp.path());
     ASSERT_TRUE(comm->initialize(2));
     comm->shutdown();
 }
@@ -15,18 +15,19 @@ TEST(PipeCommunicationTest, InitializeShutdown) {
 // test player -> server
 TEST(PipeCommunicationTest, P2S) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(tmp.path(), true);
+    auto comm = werewolf::make_pipe_communication(true, tmp.path());
     ASSERT_TRUE(comm->initialize(1));
 
     // slot 0
     std::thread player([&](){
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         comm->send_to_server(0, "hello");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     });
 
     std::optional<std::string> msg;
     // attempt for 10 times
     for(int i=0;i<10;i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         msg = comm->recv_from_player(0);
         if(msg) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -42,7 +43,7 @@ TEST(PipeCommunicationTest, P2S) {
 // test server -> player
 TEST(PipeCommunicationTest, S2P) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(tmp.path(), true);
+    auto comm = werewolf::make_pipe_communication(true, tmp.path());
     ASSERT_TRUE(comm->initialize(1));
 
     std::thread server([&](){
@@ -67,7 +68,7 @@ TEST(PipeCommunicationTest, S2P) {
 // multiple messages with new line
 TEST(PipeCommunicationTest, MultiMsg) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(tmp.path(), true);
+    auto comm = werewolf::make_pipe_communication(true, tmp.path());
     ASSERT_TRUE(comm->initialize(1));
 
     std::thread server([&](){

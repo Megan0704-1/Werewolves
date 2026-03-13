@@ -9,7 +9,7 @@ namespace werewolf {
 
 class PipeCommunication : public ICommunication {
 public:
-    explicit PipeCommunication(std::string pipe_root_dir="/home/moderator/pipes", bool create_fifos = false);
+    explicit PipeCommunication(bool create_fifos = false, std::string pipe_root_dir="/home/moderator/pipes");
 
     ~PipeCommunication() override;
 
@@ -42,6 +42,6 @@ private:
 
 };
 
-std::unique_ptr<ICommunication> make_pipe_communication(const std::string& pipe_root_dir="/home/moderator/pipes/", bool create_fifos=false);
+std::unique_ptr<ICommunication> make_pipe_communication(bool create_fifos=false, const std::string& pipe_root_dir="/home/moderator/pipes/");
 
 } // namespace werewolf

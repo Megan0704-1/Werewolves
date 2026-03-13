@@ -13,7 +13,7 @@ target_include_directories(werewolf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/incl
 # load all backends
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/backends)
 
-# frontend 
+# load all frontends
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/frontends)
 
 # tests

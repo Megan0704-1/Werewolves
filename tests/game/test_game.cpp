@@ -23,7 +23,7 @@ TEST(GameTest, RunProcessesConnectAndVotes) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     // lobby connect
@@ -63,7 +63,7 @@ TEST(GameTest, TestDeadNotes) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     // lobby connect
@@ -107,7 +107,7 @@ TEST(GameTest, TestChat) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     // lobby connect
@@ -168,7 +168,7 @@ TEST(GameTest, WitchCanHealNightVictim) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->connect_automatically();
@@ -218,7 +218,7 @@ TEST(GameTest, WitchSkipKeepsWolfVictimDead) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->connect_automatically();
@@ -267,7 +267,7 @@ TEST(GameTest, WitchPoisonKillsPoisonTargetAndKeepsWolfVictimDead) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->connect_automatically();

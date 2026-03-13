@@ -4,12 +4,13 @@
 #include <string>
 #include <cerrno>
 #include <cstring>
-#include <fstream>
 #include <iostream>
 #include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <chrono>
+#include <thread>
 
 namespace fs = std::filesystem;
 
@@ -36,8 +37,8 @@ static std::string GetS2PFIFOPath(const std::string& root, int slot) {
     return GetS2PFIFODir(root, slot) + "/server_to_player_fifo";
 }
 
-// ctor & dtor
-PipeCommunication::PipeCommunication(bool create_fifos, std::string pipe_root_dir) : pipe_root_dir_(pipe_root_dir), create_fifos_(create_fifos) {
+// helper ctor & dtor
+PipeFifoHelper::PipeFifoHelper(bool create_fifos, std::string pipe_root_dir) : pipe_root_dir_(pipe_root_dir), create_fifos_(create_fifos) {
     // make sure root dir ends with back slash
     if(pipe_root_dir_.empty() || pipe_root_dir_.back() != '/') {
         pipe_root_dir_ += '/';
@@ -49,23 +50,21 @@ PipeCommunication::PipeCommunication(bool create_fifos, std::string pipe_root_di
     }
 }
 
-PipeCommunication::~PipeCommunication() {
-    shutdown();
+PipeFifoHelper::~PipeFifoHelper() {
+    close_pipes();
 }
-
-std::unique_ptr<ICommunication> make_pipe_communication(bool create_fifos, const std::string& pipe_root_dir) {
-    return std::make_unique<PipeCommunication>(create_fifos, pipe_root_dir);
-}
-// private methods impl
 
 /* w_fifo
  * behavior: lock mutex -> write fifo -> flush -> return  
  * ensure: 2 threads don't interleave writes.
  */
-bool PipeCommunication::w_fifo(const int fd, const std::string& msg, std::mutex& mu) {
+bool PipeFifoHelper::w_fifo(const int fd, const std::string& msg, std::mutex& mu) {
     if(!alive_) return false;
     std::lock_guard lock(mu); // handle mu, automatic unlock when scope exit.
-    std::string payload = msg + '\n';
+    std::string payload = msg;
+    if(!payload.empty() && payload.back() != '\n') {
+        payload += '\n';
+    }
     ssize_t n = write(fd, payload.data(), payload.size());
     return n == static_cast<ssize_t>(payload.size());
 }
@@ -74,7 +73,7 @@ bool PipeCommunication::w_fifo(const int fd, const std::string& msg, std::mutex&
  * behavior: open fifo -> read fifo to tmp_buf -> append to rbuf -> split by newline -> return one line from rbuf
  * note: no lock is needed for reads.
  */
-std::optional<std::string> PipeCommunication::r_fifo(const int fd, std::string& rbuf) {
+std::optional<std::string> PipeFifoHelper::r_fifo(const int fd, std::string& rbuf) {
     if(!alive_) return std::nullopt;
 
     auto getline_from_rbuf = [&](std::string& line) -> bool {
@@ -99,9 +98,7 @@ std::optional<std::string> PipeCommunication::r_fifo(const int fd, std::string& 
     return std::nullopt;
 }
 
-// public methods impl
-
-bool PipeCommunication::initialize(int num_slots) {
+bool PipeFifoHelper::open_pipes(int num_slots) {
     num_slots_ = num_slots;
 
     // resize states
@@ -166,7 +163,7 @@ bool PipeCommunication::initialize(int num_slots) {
     return alive_;
 }
 
-void PipeCommunication::shutdown() {
+void PipeFifoHelper::close_pipes() {
     if(!alive_) return;
 
     // close fd
@@ -192,24 +189,81 @@ void PipeCommunication::shutdown() {
     alive_ = false;
 }
 
-bool PipeCommunication::send_to_player(int slot, const std::string& msg) {
+
+bool PipeFifoHelper::write_s2p(int slot, const std::string& msg) {
     if(!SlotValid(slot, num_slots_)) return false;
     return w_fifo(s2p_fd_[slot], msg, *s2p_mutex_[slot]);
 }
 
-std::optional<std::string> PipeCommunication::recv_from_player(int slot) {
-    if(!SlotValid(slot, num_slots_)) return std::nullopt;
-    return r_fifo(p2s_fd_[slot], p2s_rbuf_[slot]);
-}
-
-bool PipeCommunication::send_to_server(int slot, const std::string& msg) {
+bool PipeFifoHelper::write_p2s(int slot, const std::string& msg) {
     if(!SlotValid(slot, num_slots_)) return false;
     return w_fifo(p2s_fd_[slot], msg, *p2s_mutex_[slot]);
 }
 
-std::optional<std::string> PipeCommunication::recv_from_server(int slot) {
+std::optional<std::string> PipeFifoHelper::read_s2p(int slot) {
     if(!SlotValid(slot, num_slots_)) return std::nullopt;
     return r_fifo(s2p_fd_[slot], s2p_rbuf_[slot]);
+}
+
+std::optional<std::string> PipeFifoHelper::read_p2s(int slot) {
+    if(!SlotValid(slot, num_slots_)) return std::nullopt;
+    return r_fifo(p2s_fd_[slot], p2s_rbuf_[slot]);
+}
+
+// server
+ServerPipeCommunication::ServerPipeCommunication(bool create_fifos, std::string pipe_root_dir): helper_(create_fifos, pipe_root_dir) {} 
+
+ServerPipeCommunication::~ServerPipeCommunication() {
+    shutdown();
+}
+
+bool ServerPipeCommunication::initialize(int num_slots) {
+    return helper_.open_pipes(num_slots);
+}
+
+void ServerPipeCommunication::shutdown() {
+    helper_.close_pipes();
+}
+
+bool ServerPipeCommunication::send(int slot, const std::string& msg) {
+    return helper_.write_s2p(slot, msg);
+}
+
+std::optional<std::string> ServerPipeCommunication::recv(int slot) {
+    return helper_.read_p2s(slot);
+}
+
+// client
+ClientPipeCommunication::ClientPipeCommunication(std::string pipe_root_dir): helper_(false, pipe_root_dir) {} 
+
+ClientPipeCommunication::~ClientPipeCommunication() {
+    shutdown();
+}
+
+bool ClientPipeCommunication::initialize(int slot_num) {
+    player_id = slot_num;
+    return helper_.open_pipes(slot_num+1);
+}
+
+void ClientPipeCommunication::shutdown() {
+    helper_.close_pipes();
+}
+
+bool ClientPipeCommunication::send(const std::string& msg) {
+    return helper_.write_p2s(player_id, msg);
+}
+
+std::optional<std::string> ClientPipeCommunication::recv() {
+    return helper_.read_s2p(player_id);
+}
+
+// factory
+std::unique_ptr<IServerCommunication> make_server_pipe_communication(bool create_fifos, const std::string& pipe_root_dir) {
+    return std::make_unique<ServerPipeCommunication>(create_fifos, pipe_root_dir);
+}
+
+std::unique_ptr<IClientCommunication> make_client_pipe_communication(const std::string& pipe_root_dir) {
+    return std::make_unique<ClientPipeCommunication>(pipe_root_dir);
 }
 
 } // namspace werewolf

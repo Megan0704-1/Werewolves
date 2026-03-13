@@ -1,6 +1,6 @@
 #pragma once
 
-#include "werewolf/communication.h"
+#include "werewolf/client_communication.h"
 
 #include <functional>
 #include <memory>
@@ -15,7 +15,7 @@ struct ClientOptions {
     bool show_help = false;
 };
 
-using ClientCommunicationFactory = std::function<std::unique_ptr<werewolf::ICommunication>(const ClientOptions& options)>;
+using ClientCommunicationFactory = std::function<std::unique_ptr<werewolf::IClientCommunication>(const ClientOptions& options)>;
 
 void PrintClientUsage(std::string_view bin);
 

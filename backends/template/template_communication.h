@@ -1,20 +1,32 @@
 #pragma once
 
-#include "werewolf/communication.h"
+#include "werewolf/server_communication.h"
+#include "werewolf/client_communication.h"
+#include <memory>
 
 namespace werewolf {
 
-class TemplateCommunication : public ICommunication {
+class TemplateServerCommunication : public IServerCommunication {
 public:
     bool initialize(int num_slots) override;
     void shutdown() override;
-    bool send_to_player(int slot, const std::string& msg) override;
-    std::optional<std::string> recv_from_player(int slot) override;
-    bool send_to_server(int slot, const std::string& msg) override;
-    std::optional<std::string> recv_from_server(int slot) override;
+    bool send(int slot, const std::string& msg) override;
+    std::optional<std::string> recv(int slot) override;
 };
 
-std::unique_ptr<ICommunication> make_template_communication();
+class TemplateClientCommunication : public IClientCommunication{
+public:
+    bool initialize(int slot_num) override;
+    void shutdown() override;
+    bool send(const std::string& msg) override;
+    std::optional<std::string> recv() override;
+
+private:
+    int player_id = -1;
+};
+
+std::unique_ptr<IServerCommunication> make_server_template_communication();
+std::unique_ptr<IClientCommunication> make_client_template_communication();
 
 }// namespace werewolf
 

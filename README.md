@@ -28,6 +28,18 @@ ctest
 ./tests/test_template
 ```
 
+## Play
+To play with this game, you'll need to build the project first (follow instruction in tests).
+```bash
+# cd to project root
+
+# launch server
+./build/frontends/pipes/werewolf_pipe_server --pipe-root /tmp/werewolves --create-fifos --players 4 --wolves 1 --lobby 10 --chat 10 --vote 10 --speech 10 --witch 1 --det-assign
+
+# launch clients
+./build/frontends/pipes/werewolf_pipe_client 1 --pipe-root /tmp/werewolves
+```
+
 ## Note
 Make sure to pass the CI test before merging into main.
 

@@ -82,6 +82,8 @@ TEST(UnitTest, RunLogsLobbyInitialization) {
 TEST(UnitTest, RunLogsLobbyReadyBroadcast) {
     GameConfig cfg;
     cfg.max_players = 6;
+    cfg.deterministic_assign = true;
+    cfg.deterministic_vote = true;
 
     testutils::TempDir tmp_dir;
     cfg.game_log = tmp_dir.path() + "/game.log";

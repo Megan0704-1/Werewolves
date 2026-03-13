@@ -83,7 +83,7 @@ int RunClient(const ClientOptions& options, const ClientCommunicationFactory& fa
         return 1;
     }
 
-    if(!comm->initialize(options.slot+1)) {
+    if(!comm->initialize(options.slot)) {
         std::lock_guard<std::mutex> lock(io_mutex);
         std::cerr << "Failed to initialize communication\n";
         return 1;
@@ -97,7 +97,7 @@ int RunClient(const ClientOptions& options, const ClientCommunicationFactory& fa
     {
         const std::string connect_req = "connect";
         std::lock_guard<std::mutex> lock(send_mutex);
-        comm->send_to_server(options.slot, connect_req);
+        comm->send(connect_req);
     }
 
     std::thread listener([&]() {
@@ -105,7 +105,7 @@ int RunClient(const ClientOptions& options, const ClientCommunicationFactory& fa
                 std::optional<std::string> msg;
                 {
                     std::lock_guard<std::mutex> lock(recv_mutex);
-                    msg = comm->recv_from_server(options.slot);
+                    msg = comm->recv();
                 } // end if
 
                 if(!msg) {
@@ -148,7 +148,7 @@ int RunClient(const ClientOptions& options, const ClientCommunicationFactory& fa
             if(!running_ref.load()) break;
             {
                 std::lock_guard<std::mutex> lock(send_mutex);
-                comm->send_to_server(options.slot, line);
+                comm->send(line);
             }
         }
         

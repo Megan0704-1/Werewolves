@@ -28,7 +28,7 @@ Game::CleanupGuard::~CleanupGuard() {
 }
 
 // ctor & dtor
-Game::Game(std::unique_ptr<ICommunication> comm, GameConfig cfg): comm_(std::move(comm)), cfg_(std::move(cfg)), round_cnt(0) {}
+Game::Game(std::unique_ptr<IServerCommunication> comm, GameConfig cfg): comm_(std::move(comm)), cfg_(std::move(cfg)), round_cnt(0) {}
 
 Game::~Game() {
     request_stop();
@@ -582,7 +582,7 @@ bool Game::send_to_slot(int slot, const std::string& msg) {
         return false;
     }
 
-    if(!comm_->send_to_player(slot, msg)) {
+    if(!comm_->send(slot, msg)) {
         log("send_to_slot failed for slot " + std::to_string(slot), true, true, true);
         return false;
     }
@@ -591,9 +591,12 @@ bool Game::send_to_slot(int slot, const std::string& msg) {
 }
 
 void Game::broadcast_to_slots(const std::string& msg, const std::vector<int>& slots) {
-    for(int slot : slots) {
-        send_to_slot(slot, msg);
+    if(!comm_) {
+        log("broadcast_to_slots failed: no communication backend", true, true, true);
+        return;
     }
+    comm_->broadcast(msg, slots);
+    log("Game broadcast: " + msg);
 }
 
 std::optional<std::string> Game::recv_from_slot(int slot) {
@@ -601,7 +604,7 @@ std::optional<std::string> Game::recv_from_slot(int slot) {
         log("recv_from_slot failed: no communication backend", true, true, true);
         return std::nullopt;
     }
-    return comm_->recv_from_player(slot);
+    return comm_->recv(slot);
 }
 
 void Game::announce_death(int slot, const std::string& when) {

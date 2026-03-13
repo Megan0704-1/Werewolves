@@ -18,7 +18,7 @@ TEST(UnitTest, RunInitializesAndShutsDownCommunication) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     // raw observer
     auto* raw = fake.get();
 
@@ -39,7 +39,7 @@ TEST(UnitTest, RunReturnsWhenInitializeFails) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     fake->initialize_result = false; // this makes initialize returns false in fake_communication.h
     auto* raw = fake.get();
 
@@ -66,7 +66,7 @@ TEST(UnitTest, RunLogsLobbyInitialization) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     Game game(std::move(fake), cfg);
@@ -89,7 +89,7 @@ TEST(UnitTest, RunLogsLobbyReadyBroadcast) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->connect_automatically();
@@ -120,7 +120,7 @@ TEST(UnitTest, RunLobbyLoadNames) {
     names_fd << "cathy" << std::endl;
     names_fd.close();
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     Game game(std::move(fake), cfg);
@@ -142,7 +142,7 @@ TEST(UnitTest, RoleAssignmentTest) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->connect_automatically();
@@ -171,7 +171,7 @@ TEST(UnitTest, RunDeterministic) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->connect_automatically();
@@ -200,7 +200,7 @@ TEST(UnitTest, TestLobbyConnected) {
     cfg.game_log = tmp_dir.path() + "/game.log";
     cfg.moderator_log = tmp_dir.path() + "/moderator.log";
 
-    auto fake = std::make_unique<FakeCommunication>(cfg.max_players);
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
     auto* raw = fake.get();
 
     raw->push_msg(0, "connect");
@@ -218,4 +218,25 @@ TEST(UnitTest, TestLobbyConnected) {
     EXPECT_THAT(log_content, HasSubstr("player4 is connected."));
 }
 
+TEST(UnitTest, BroadcastDelegatesToTransport) {
+    GameConfig cfg;
+    cfg.max_players = 6;
+    cfg.deterministic_assign = true;
+    cfg.deterministic_vote = true;
+
+    testutils::TempDir tmp_dir;
+    cfg.game_log = tmp_dir.path() + "/game.log";
+    cfg.moderator_log = tmp_dir.path() + "/moderator.log";
+
+    auto fake = std::make_unique<FakeServerCommunication>(cfg.max_players);
+    auto* raw = fake.get();
+
+    raw->connect_automatically();
+
+    Game game(std::move(fake), cfg);
+    game.run();
+
+    // Verify that broadcast was actually called on the transport, not just individual sends
+    EXPECT_GT(raw->broadcast_called, 0);
+}
 } // namespace werewolf::test

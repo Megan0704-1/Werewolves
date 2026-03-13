@@ -1,24 +1,27 @@
 #pragma once
 
-#include "werewolf/communication.h"
+#include "werewolf/server_communication.h"
+#include "werewolf/client_communication.h"
 #include <memory>
 #include <vector>
 #include <mutex>
 
 namespace werewolf {
 
-class PipeCommunication : public ICommunication {
+class PipeFifoHelper {
 public:
-    explicit PipeCommunication(bool create_fifos = false, std::string pipe_root_dir="/home/moderator/pipes");
+    explicit PipeFifoHelper(bool create_fifos = false, std::string pipe_root_dir="/home/moderator/pipes");
 
-    ~PipeCommunication() override;
+    ~PipeFifoHelper();
 
-    bool initialize(int num_slots) override;
-    void shutdown() override;
-    bool send_to_player(int slot, const std::string& msg) override;
-    std::optional<std::string> recv_from_player(int slot) override;
-    bool send_to_server(int slot, const std::string& msg) override;
-    std::optional<std::string> recv_from_server(int slot) override;
+    bool open_pipes(int num_slots);
+    void close_pipes();
+
+    bool write_s2p(int slot, const std::string& msg);
+    std::optional<std::string> read_s2p(int slot);
+
+    bool write_p2s(int slot, const std::string& msg);
+    std::optional<std::string> read_p2s(int slot);
 
 private:
     std::string pipe_root_dir_;
@@ -42,6 +45,42 @@ private:
 
 };
 
-std::unique_ptr<ICommunication> make_pipe_communication(bool create_fifos=false, const std::string& pipe_root_dir="/home/moderator/pipes/");
+// pipe server
+class ServerPipeCommunication : public IServerCommunication {
+public:
+    explicit ServerPipeCommunication(bool create_fifos = false, std::string pipe_root_dir="/home/moderator/pipes");
+
+    ~ServerPipeCommunication() override;
+
+    bool initialize(int num_slots) override;
+    void shutdown() override;
+    bool send(int slot, const std::string& msg) override;
+    std::optional<std::string> recv(int slot) override;
+
+private:
+    PipeFifoHelper helper_;
+};
+
+
+// pipe client
+class ClientPipeCommunication : public IClientCommunication {
+public:
+    explicit ClientPipeCommunication(std::string pipe_root_dir="/home/moderator/pipes");
+
+    ~ClientPipeCommunication() override;
+
+    bool initialize(int slot_num) override;
+    void shutdown() override;
+    bool send(const std::string& msg) override;
+    std::optional<std::string> recv() override;
+
+private:
+    int player_id = -1;
+    PipeFifoHelper helper_;
+};
+
+std::unique_ptr<IServerCommunication> make_server_pipe_communication(bool create_fifos=false, const std::string& pipe_root_dir="/home/moderator/pipes/");
+
+std::unique_ptr<IClientCommunication> make_client_pipe_communication(const std::string& pipe_root_dir="/home/moderator/pipes/");
 
 } // namespace werewolf

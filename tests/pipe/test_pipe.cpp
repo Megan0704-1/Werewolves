@@ -7,28 +7,29 @@
 // test init and close
 TEST(PipeCommunicationTest, InitializeShutdown) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(true, tmp.path());
-    ASSERT_TRUE(comm->initialize(2));
-    comm->shutdown();
+    auto server = werewolf::make_server_pipe_communication(true, tmp.path());
+    ASSERT_TRUE(server->initialize(2));
+    server->shutdown();
 }
 
-// test player -> server
-TEST(PipeCommunicationTest, P2S) {
+// test player -> server (client sends, server receives)
+TEST(PipeCommunicationTest, ClientToServer) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(true, tmp.path());
-    ASSERT_TRUE(comm->initialize(1));
+    auto server = werewolf::make_server_pipe_communication(true, tmp.path());
+    auto client = werewolf::make_client_pipe_communication(tmp.path());
 
-    // slot 0
+    ASSERT_TRUE(server->initialize(1));
+    ASSERT_TRUE(client->initialize(0));
+
     std::thread player([&](){
-        comm->send_to_server(0, "hello");
+        client->send("hello");
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     });
 
     std::optional<std::string> msg;
-    // attempt for 10 times
-    for(int i=0;i<10;i++) {
+    for(int i = 0; i < 10; i++) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        msg = comm->recv_from_player(0);
+        msg = server->recv(0);
         if(msg) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
@@ -37,23 +38,27 @@ TEST(PipeCommunicationTest, P2S) {
     EXPECT_EQ(msg.value(), "hello");
 
     player.join();
-    comm->shutdown();
+    client->shutdown();
+    server->shutdown();
 }
 
-// test server -> player
-TEST(PipeCommunicationTest, S2P) {
+// test server -> player (server sends, client receives)
+TEST(PipeCommunicationTest, ServerToClient) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(true, tmp.path());
-    ASSERT_TRUE(comm->initialize(1));
+    auto server = werewolf::make_server_pipe_communication(true, tmp.path());
+    auto client = werewolf::make_client_pipe_communication(tmp.path());
 
-    std::thread server([&](){
+    ASSERT_TRUE(server->initialize(1));
+    ASSERT_TRUE(client->initialize(0));
+
+    std::thread sender([&](){
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        comm->send_to_player(0, "vote");
+        server->send(0, "vote");
     });
 
     std::optional<std::string> msg;
-    for(int i=0;i<10;i++) {
-        msg = comm->recv_from_server(0);
+    for(int i = 0; i < 10; i++) {
+        msg = client->recv();
         if(msg) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
@@ -61,26 +66,30 @@ TEST(PipeCommunicationTest, S2P) {
     ASSERT_TRUE(msg.has_value());
     EXPECT_EQ(msg.value(), "vote");
 
-    server.join();
-    comm->shutdown();
+    sender.join();
+    client->shutdown();
+    server->shutdown();
 }
 
-// multiple messages with new line
-TEST(PipeCommunicationTest, MultiMsg) {
+// multiple messages
+TEST(PipeCommunicationTest, MultipleMessages) {
     testutils::TempDir tmp;
-    auto comm = werewolf::make_pipe_communication(true, tmp.path());
-    ASSERT_TRUE(comm->initialize(1));
+    auto server = werewolf::make_server_pipe_communication(true, tmp.path());
+    auto client = werewolf::make_client_pipe_communication(tmp.path());
 
-    std::thread server([&](){
+    ASSERT_TRUE(server->initialize(1));
+    ASSERT_TRUE(client->initialize(0));
+
+    std::thread sender([&](){
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        comm->send_to_player(0, "hello2");
-        comm->send_to_player(0, "hello1");
-        comm->send_to_player(0, "hello0");
+        server->send(0, "hello2");
+        server->send(0, "hello1");
+        server->send(0, "hello0");
     });
 
     std::optional<std::string> msg;
-    for(int i=0;i<10;i++) {
-        msg = comm->recv_from_server(0);
+    for(int i = 0; i < 10; i++) {
+        msg = client->recv();
         if(msg) break;
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
@@ -88,14 +97,48 @@ TEST(PipeCommunicationTest, MultiMsg) {
     ASSERT_TRUE(msg.has_value());
     EXPECT_EQ(msg.value(), "hello2");
 
-    msg = comm->recv_from_server(0);
+    msg = client->recv();
     ASSERT_TRUE(msg.has_value());
     EXPECT_EQ(msg.value(), "hello1");
 
-    msg = comm->recv_from_server(0);
+    msg = client->recv();
     ASSERT_TRUE(msg.has_value());
     EXPECT_EQ(msg.value(), "hello0");
 
-    server.join();
-    comm->shutdown();
+    sender.join();
+    client->shutdown();
+    server->shutdown();
 }
+
+// test broadcast
+TEST(PipeCommunicationTest, BroadcastSendsToAllSlots) {
+    testutils::TempDir tmp;
+    auto server = werewolf::make_server_pipe_communication(true, tmp.path());
+    auto client0 = werewolf::make_client_pipe_communication(tmp.path());
+    auto client1 = werewolf::make_client_pipe_communication(tmp.path());
+
+    ASSERT_TRUE(server->initialize(2));
+    ASSERT_TRUE(client0->initialize(0));
+    ASSERT_TRUE(client1->initialize(1));
+
+    server->broadcast("hello all", {0, 1});
+
+    std::optional<std::string> msg0, msg1;
+    for(int i = 0; i < 10; i++) {
+        if(!msg0) msg0 = client0->recv();
+        if(!msg1) msg1 = client1->recv();
+        if(msg0 && msg1) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    ASSERT_TRUE(msg0.has_value());
+    EXPECT_EQ(msg0.value(), "hello all");
+
+    ASSERT_TRUE(msg1.has_value());
+    EXPECT_EQ(msg1.value(), "hello all");
+
+    client0->shutdown();
+    client1->shutdown();
+    server->shutdown();
+}
+

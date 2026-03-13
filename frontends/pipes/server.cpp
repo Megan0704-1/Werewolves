@@ -101,8 +101,10 @@ ServerOptions ParseServerArgs(int argc, char* argv[]) {
     return options;
 }
 
-int RunServer(const ServerOptions& options, const CommunicationFactory& factory) {
-    if(options.show_help) return 0;
+int RunServer(const ServerOptions& options, const ServerCommunicationFactory& factory) {
+    if(options.show_help) {
+        return 0;
+    }
 
     auto comm = factory(options);
     if(!comm) {

@@ -2,7 +2,7 @@
 
 /// game.h
 
-#include "werewolf/communication.h"
+#include "werewolf/server_communication.h"
 #include "werewolf/types.h"
 #include <atomic>
 #include <fstream>
@@ -14,7 +14,7 @@ namespace werewolf {
 
 class Game {
 public:
-    explicit Game(std::unique_ptr<ICommunication> comm, GameConfig cfg = {});
+    explicit Game(std::unique_ptr<IServerCommunication> comm, GameConfig cfg = {});
     ~Game();
 
     void run();
@@ -42,7 +42,7 @@ private:
     };
 
     // members
-    std::unique_ptr<ICommunication> comm_;
+    std::unique_ptr<IServerCommunication> comm_;
     GameConfig cfg_;
     std::atomic<bool> running_{false};
     int round_cnt = 0;

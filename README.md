@@ -46,6 +46,8 @@ To play with this game, you'll need to build the project first (follow instructi
 ## Development
 ```bash
 pre-commit install # this enforce clang-format before commiting
+# run clang-format on all files
+find . -iname *.h -o -iname *.cpp | xargs clang-format -i
 ```
 
 ## Note

@@ -47,3 +47,8 @@ add_test(
     NAME test_pipe_e2e
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/pipe/e2e/test_pipe_e2e.sh
 )
+
+add_test(
+    NAME test_shm_e2e
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/shm/e2e/test_shm_e2e.sh
+)

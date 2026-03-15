@@ -108,7 +108,7 @@ private:
 
 // factory
 std::unique_ptr<IServerCommunication> make_server_shm_communication(
-    const std::string& shm_name = "/werewolf_shm", bool create_shm = false);
+    const std::string& shm_name = "/werewolf_shm", bool create_shm = true);
 
 std::unique_ptr<IClientCommunication> make_client_shm_communication(
     const std::string& shm_name = "/werewolf_shm");

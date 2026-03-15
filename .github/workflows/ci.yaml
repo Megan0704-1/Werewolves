@@ -13,6 +13,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Check formatting
+      uses: jidicula/clang-format-action@v4.11.0
+      with:
+        clang-format-version: '18'
+        check-path: '.'
+        fallback-style: 'Google'
+
     - name: Install dependencies
       run: |
         sudo apt-get update

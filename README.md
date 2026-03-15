@@ -10,6 +10,9 @@ Terminal-based implementation of the Werewolf party game with pluggable communic
 ## Requirements & packages
 - Linux 
 - CMake
+- CPP compiler
+- Clang-format
+- Pre-commit
 
 ## Tests
 We use googletest to manage the project.
@@ -40,9 +43,13 @@ To play with this game, you'll need to build the project first (follow instructi
 ./build/frontends/pipes/werewolf_pipe_client 1 --pipe-root /tmp/werewolves
 ```
 
+## Development
+```bash
+pre-commit install # this enforce clang-format before commiting
+```
+
 ## Note
 Make sure to pass the CI test before merging into main.
 
 ## TODO
-format and tidy
 chat_delay is a temporary fix for chat_phase taking msg from the fake_communication queue.

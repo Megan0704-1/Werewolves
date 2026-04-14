@@ -303,21 +303,15 @@ VoteResult Game::collect_votes(const std::vector<int>& voters,
                                int duration) {
   broadcast_to_slots("[vote] starts", voters);
   VoteResult vr;
-
   auto timeout =
-      std::chrono::steady_clock().now() + std::chrono::seconds(duration);
-  std::vector<bool> voted(cfg_.max_players,
-                          false);  // max player space to ensure valid indexing
-  std::vector<int> votes(cfg_.max_players,
-                         0);  // max player space to ensure valid indexing
+      std::chrono::steady_clock::now() + std::chrono::seconds(duration);
+  std::vector<int> votes(cfg_.max_players, 0);
+  std::vector<int> voted_for(cfg_.max_players, -1);  // -1 = hasn't voted
 
-  while (std::chrono::steady_clock().now() < timeout) {
+  while (std::chrono::steady_clock::now() < timeout) {
     for (auto v : voters) {
-      if (voted[v]) continue;
       auto msg = recv_from_slot(v);
       if (!msg) continue;
-
-      // vote string should be prefixed with "vote<colon><space>"
       if (msg->rfind(cfg_.vote_prefix, 0) != 0) continue;
       std::string target_name = msg->substr(cfg_.vote_prefix.size());
       auto p = get_player_info(target_name);
@@ -330,8 +324,14 @@ VoteResult Game::collect_votes(const std::vector<int>& voters,
         send_to_slot(v, "[Invalid vote] Unallowed target: " + target_name);
         continue;
       }
+
+      // retract previous vote if changing
+      if (voted_for[v] >= 0) {
+        votes[voted_for[v]]--;
+      }
+
       votes[p->slot]++;
-      voted[v] = true;
+      voted_for[v] = p->slot;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(cfg_.delay_ms));
   }
@@ -346,7 +346,6 @@ VoteResult Game::collect_votes(const std::vector<int>& voters,
     } else if (max_vote > 0 && votes[cand] == max_vote)
       tie = true;
   }
-
   if (max_vote == 0)
     vr.status = VoteStatus::NoDecision;
   else if (tie)
@@ -355,7 +354,6 @@ VoteResult Game::collect_votes(const std::vector<int>& voters,
     vr.status = VoteStatus::Decided;
     vr.target = target;
   }
-
   broadcast_to_slots("[vote] ends", voters);
   return vr;
 }
@@ -710,6 +708,7 @@ void Game::day_phase() {
 
 // return immediately after recving the first dead note.
 void Game::dead_phase(int slot) {
+  send_to_slot(slot, "You are dead.");
   auto info = get_player_info(slot);
   if (!info) return;
 

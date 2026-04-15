@@ -176,6 +176,6 @@ Werewolf is a social deduction game with the following phases each round:
 
 1. **Night Phase** -- Wolves privately vote to kill a villager; the Witch may heal or poison.
 2. **Day Phase** -- All living players discuss and vote to lynch a suspect.
-3. **Win Conditions** -- Village wins when all wolves are eliminated; Wolves win when they equal or outnumber the villagers.
+3. **Win Conditions** -- Village wins when all wolves are eliminated; Wolves win when they outnumber the villagers.
 
 Roles: Townperson, Wolf, Witch (with heal and poison powers).

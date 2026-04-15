@@ -14,16 +14,22 @@ enable_testing()
 
 add_executable(test_template ${CMAKE_CURRENT_SOURCE_DIR}/template/test_template.cpp)
 add_executable(test_pipe ${CMAKE_CURRENT_SOURCE_DIR}/pipe/test_pipe.cpp)
+add_executable(test_shm ${CMAKE_CURRENT_SOURCE_DIR}/shm/test_shm.cpp)
+
 add_executable(test_unit ${CMAKE_CURRENT_SOURCE_DIR}/game/test_unit.cpp)
 add_executable(test_game ${CMAKE_CURRENT_SOURCE_DIR}/game/test_game.cpp)
 
 target_link_libraries(test_template PUBLIC werewolf_template_backend GTest::gtest_main)
 target_link_libraries(test_pipe PUBLIC werewolf_pipe_backend GTest::gtest_main)
+target_link_libraries(test_shm PUBLIC werewolf_shm_backend GTest::gtest_main)
+
 target_link_libraries(test_unit PUBLIC werewolf_core GTest::gtest_main GTest::gmock_main)
 target_link_libraries(test_game PUBLIC werewolf_core GTest::gtest_main GTest::gmock_main)
 
 target_include_directories(test_template PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils)
 target_include_directories(test_pipe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils)
+target_include_directories(test_shm PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils)
+
 target_include_directories(test_unit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils ${CMAKE_CURRENT_SOURCE_DIR}/game)
 target_include_directories(test_game PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/utils ${CMAKE_CURRENT_SOURCE_DIR}/game)
 
@@ -31,6 +37,8 @@ include(GoogleTest)
 
 gtest_discover_tests(test_template)
 gtest_discover_tests(test_pipe)
+gtest_discover_tests(test_shm)
+
 gtest_discover_tests(test_unit)
 gtest_discover_tests(test_game)
 
@@ -38,4 +46,9 @@ gtest_discover_tests(test_game)
 add_test(
     NAME test_pipe_e2e
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/pipe/e2e/test_pipe_e2e.sh
+)
+
+add_test(
+    NAME test_shm_e2e
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/shm/e2e/test_shm_e2e.sh
 )

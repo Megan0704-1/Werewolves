@@ -1,0 +1,3 @@
+add_library(werewolf_shm_backend STATIC shm_communication.cpp)
+target_link_libraries(werewolf_shm_backend PUBLIC werewolf_core)
+target_include_directories(werewolf_shm_backend PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")

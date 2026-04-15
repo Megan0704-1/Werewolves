@@ -493,7 +493,8 @@ void Game::handle_night_vote_result(const WitchAction& action,
 
   switch (action.magic) {
     case WitchAction::Magic::Healed:
-      log("Witch healed " + get_player_info(result.target)->name);
+      broadcast_to_slots("Witch healed " + get_player_info(result.target)->name,
+                         alive_slots());
       return;
 
     case WitchAction::Magic::Poisoned:
@@ -654,7 +655,6 @@ void Game::announce_death(int slot, const std::string& when) {
   } else {
     msg = info->name + " died.";
   }
-  log(msg);
   broadcast_to_slots(msg, alive_slots());
 }
 
@@ -767,7 +767,7 @@ Winner Game::check_win() const {
   int village_cnt = static_cast<int>(alive_slots().size()) - wolves_cnt;
 
   if (wolves_cnt == 0) return Winner::Village;
-  if (wolves_cnt >= village_cnt) return Winner::Wolf;
+  if (wolves_cnt > village_cnt) return Winner::Wolf;
   return Winner::TBD;
 }
 
